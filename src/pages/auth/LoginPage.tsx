@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { login as loginService } from '@/services/auth';
+import { login as loginService } from '../../services/auth';
+import { PartnerForm } from '../../components/contact/PartnerForm';
+import { Dialog, DialogContent } from '../../components/ui/dialog'; // Assuming you have Dialog from shadcn/ui
 
 interface LoginFormData {
   email: string;
@@ -21,6 +23,7 @@ export function LoginPage() {
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState<boolean>(false);
 
   const navigate = useNavigate();
   const location = useLocation() as { state?: LocationState };
@@ -80,6 +83,11 @@ export function LoginPage() {
     }
     
     console.log('=== DEBUG LOGIN END ===');
+  };
+
+  const openRegisterModal = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsRegisterModalOpen(true);
   };
 
   return (
@@ -145,15 +153,25 @@ export function LoginPage() {
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
-            <Link 
-              to="/"
+            <a 
+              href="#" 
+              onClick={openRegisterModal}
               className="text-orange-600 hover:text-orange-700 font-medium"
             >
               Register here
-            </Link>
+            </a>
           </p>
         </div>
       </div>
+
+      {/* Registration Modal */}
+      <Dialog open={isRegisterModalOpen} onOpenChange={setIsRegisterModalOpen}>
+  <DialogContent className="sm:max-w-[95%] md:max-w-lg lg:max-w-xl p-0 bg-transparent border-none shadow-none">
+    <div className="max-h-[85vh] overflow-y-auto">
+      <PartnerForm />
+    </div>
+  </DialogContent>
+</Dialog>
     </div>
   );
 }

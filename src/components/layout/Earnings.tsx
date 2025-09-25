@@ -140,10 +140,7 @@ export function Earnings() {
                         {tier.monthly}
                       </motion.p>
                     </div>
-                    <div className="bg-gradient-to-r from-orange-50 to-pink-50 rounded-lg p-3">
-                      <p className="text-sm text-gray-600">Commission Rate</p>
-                      <p className="text-lg font-semibold text-orange-600">{tier.commission}</p>
-                    </div>
+                
                   </div>
                 </CardContent>
               </Card>
