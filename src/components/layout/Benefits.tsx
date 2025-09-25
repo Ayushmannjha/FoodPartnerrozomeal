@@ -165,30 +165,7 @@ export function Benefits() {
                 </div>
               </div>
             </motion.div>
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              className="grid grid-cols-2 gap-4 text-center"
-            >
-              <motion.div whileHover={{ scale: 1.05 }}>
-                <p className="text-3xl font-bold">{t('benefits.revenueIncrease')}</p>
-                <p className="text-sm opacity-80">{t('benefits.revenueIncrease')}</p>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.05 }}>
-                <p className="text-3xl font-bold">{t('benefits.newCustomers')}</p>
-                <p className="text-sm opacity-80">{t('benefits.newCustomers')}</p>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.05 }}>
-                <p className="text-3xl font-bold">{t('benefits.rating')}</p>
-                <p className="text-sm opacity-80">{t('benefits.rating')}</p>
-              </motion.div>
-              <motion.div whileHover={{ scale: 1.05 }}>
-                <p className="text-3xl font-bold">{t('benefits.months')}</p>
-                <p className="text-sm opacity-80">{t('benefits.months')}</p>
-              </motion.div>
-            </motion.div>
+           
           </div>
         </motion.div>
       </div>

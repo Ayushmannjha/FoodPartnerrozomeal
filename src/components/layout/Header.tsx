@@ -27,7 +27,7 @@ export function Header() {
       initial={{ y: -100 }}
       animate={{ y: 0 }}
       transition={{ duration: 0.6 }}
-      className="bg-white/95 backdrop-blur-sm border-b sticky top-0 z-50 shadow-sm"
+      className="bg-transparent/95 backdrop-blur-sm border-b sticky top-0 z-50 shadow-sm"
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
@@ -40,8 +40,7 @@ export function Header() {
             <div className="bg-gradient-to-r from-pink-500 to-orange-500 text-white px-3 py-2 rounded-lg mr-2">
               <span>👩‍🍳</span>
             </div>
-            <span className="text-xl font-bold text-gray-900">RozoMeal</span>
-            <span className="text-sm text-pink-500 ml-2">for Women</span>
+            
           </motion.div>
 
           {/* Desktop Navigation */}

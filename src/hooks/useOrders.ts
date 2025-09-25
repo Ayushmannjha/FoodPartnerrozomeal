@@ -6,7 +6,7 @@ import type { OrderWithDetails } from '../types/order';
 import { useAuth } from '../context/AuthContext';
 import { dataCache, CACHE_KEYS, CACHE_TTL } from '../utils/dataCache';
 
-export const useOrders = (autoRefresh = true, refreshInterval = 30000) => { // Increased interval to 30s
+export const useOrders = (autoRefresh = true, refreshInterval = 3000) => { // Increased interval to 30s
   const [orders, setOrders] = useState<OrderWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -235,7 +235,7 @@ export function HowItWorks() {
               }}
               className="absolute -top-4 -right-4 bg-pink-400 rounded-full p-3 shadow-lg"
             >
-              <span className="text-white text-xl">👩‍🍳</span>
+              
             </motion.div>
             <motion.div
               animate={{ 
