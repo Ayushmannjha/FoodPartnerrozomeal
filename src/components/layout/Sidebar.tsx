@@ -1,16 +1,37 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { MobileNavigation } from './MobileNavigation';
+import { Home, Package, ChefHat, BarChart2, User, Settings } from "lucide-react";
 
 export function Sidebar() {
   const location = useLocation();
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Check if the device is mobile
+  useEffect(() => {
+    const checkIfMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkIfMobile();
+    window.addEventListener('resize', checkIfMobile);
+    
+    return () => window.removeEventListener('resize', checkIfMobile);
+  }, []);
+
+  // If mobile, use the mobile navigation
+  if (isMobile) {
+    return <MobileNavigation />;
+  }
 
   const navigation = [
-    { name: 'Dashboard', href: '/dashboard', icon: '📊' },
-    { name: 'Profile', href: '/dashboard/profile', icon: '📋' },
-    { name: 'Assigned', href: '/dashboard/assigned', icon: '🍽️' },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: '📈' },
-    { name: 'Settings', href: '/dashboard/settings', icon: '⚙️' },
-    { name: 'Order Assigned', href: '/dashboard/order-assigned', icon: '📦' },
-    { name: 'Order', href: '/dashboard/order', icon: '📋' },
+    { name: 'Dashboard', href: '/dashboard', icon: <Home className="h-5 w-5" /> },
+    { name: 'Orders', href: '/dashboard/order', icon: <Package className="h-5 w-5" /> },
+    { name: 'Assigned', href: '/dashboard/assigned', icon: <ChefHat className="h-5 w-5" /> },
+    { name: 'Analytics', href: '/dashboard/analytics', icon: <BarChart2 className="h-5 w-5" /> },
+    { name: 'Profile', href: '/dashboard/profile', icon: <User className="h-5 w-5" /> },
+    { name: 'Settings', href: '/dashboard/settings', icon: <Settings className="h-5 w-5" /> },
+    { name: 'Order Assigned', href: '/dashboard/order-assigned', icon: <Package className="h-5 w-5" /> },
   ];
 
   return (
