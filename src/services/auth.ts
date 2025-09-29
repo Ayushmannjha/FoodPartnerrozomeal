@@ -20,7 +20,7 @@ export interface FoodPartner {
   id?: string;
 }
 
-export const API_BASE_URL = "http://localhost:8080";
+export const API_BASE_URL = "https://api.rozomeal.com";
 
 // ===== Generic Request Function =====
 async function request<T>(
