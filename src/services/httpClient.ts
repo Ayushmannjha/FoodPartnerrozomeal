@@ -2,7 +2,7 @@ import { TokenManager } from '../utils/tokenManager';
 import { JWTUtils } from './jwtUtils';
 
 class HttpClient {
-  private baseURL = "https://api.rozomeal.com";
+  private baseURL = "http://localhost:8080";
 
   private getHeaders(): HeadersInit {
     const token = TokenManager.getToken();

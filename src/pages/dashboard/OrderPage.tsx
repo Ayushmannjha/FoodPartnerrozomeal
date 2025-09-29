@@ -10,6 +10,9 @@ import { OrderPageHeader } from '../../components/order/OrderPageHeader';
 import type { Order } from '../../types/order';
 import { OrderStatus } from '../../types/order';
 import { AlertCircle, Package, Clock, CheckCircle, Bell } from 'lucide-react';
+import { connectStomp } from '../../services/stompClient';
+import { orderService } from '../../services/orderService';
+import React, {  useEffect } from 'react';
 
 export function OrderPage() {
   const { orders, loading, error, refetch, acceptOrder, clearError } = useOrders();
@@ -84,6 +87,32 @@ export function OrderPage() {
       await handleAcceptOrder(order.orderId);
     }
   };
+useEffect(() => {
+  if (!user?.id) return;
+
+  // 1. Connect STOMP
+  connectStomp(async () => {
+    console.log('✅ STOMP connected');
+
+    // 2. Fetch initial orders via WebSocket
+    const fetchedOrders = await orderService.getAllOrders(user.id);
+    console.log(fetchedOrders) // replace or merge with your hook state
+
+    // 3. Subscribe to real-time order updates
+    const subscription = orderService.subscribeToNewOrders(
+      user.pincode, // make sure user object has pincode
+      (newOrder) => {
+        console.log('📢 New order received via WS:', newOrder);
+       // prepend new order
+      }
+    );
+
+    // Cleanup on unmount
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  });
+}, [user]);
 
   // Handle filter changes
   const handleFilterChange = (filters: { status: string; search: string }) => {

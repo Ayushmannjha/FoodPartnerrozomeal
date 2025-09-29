@@ -1,23 +1,62 @@
 import { httpClient } from './httpClient';
 import { Order, AcceptOrderResponse, AssignedOrder, UpdateOrderResponse } from '../types/order';
-
+import { getStompClient } from "./stompClient";
 export const orderService = {
   // Get all orders
-  async getAllOrders(foodPartnerId: string): Promise<Order[]> {
-    try {
-      console.log('🔍 Making API call to get orders for food partner:', foodPartnerId);
-      console.log('🔗 Request URL: /food-partner/get-orders?userId=' + foodPartnerId);
-      
-      const response = await httpClient.get<Order[]>(`/food-partner/get-orders?userId=${foodPartnerId}`);
-      
-      console.log('✅ API Response received:', response);
-      console.log('📊 Orders count:', Array.isArray(response) ? response.length : 'Not an array');
-      
-      return response;
-    } catch (error) {
-      console.error('❌ Error fetching orders:', error);
-      throw new Error('Failed to fetch orders');
+async getAllOrders(foodPartnerId: string): Promise<Order[]> {
+    return new Promise((resolve, reject) => {
+      const stompClient = getStompClient();
+
+      if (!stompClient || !stompClient.connected) {
+        return reject("❌ STOMP client not connected");
+      }
+
+      // Subscribe to topic first
+      const subscription = stompClient.subscribe(
+        `/topic/food-orders/${foodPartnerId}`,
+        (message) => {
+          try {
+            const orders: Order[] = JSON.parse(message.body);
+            console.log("📩 Orders received via WS:", orders);
+            resolve(orders);
+          } catch (err) {
+            console.error("❌ Failed to parse orders:", err);
+            reject(err);
+          } finally {
+            subscription.unsubscribe();
+          }
+        },
+        { id: `getOrders-sub-${foodPartnerId}` }
+      );
+
+      // Send request to backend
+      stompClient.publish({
+        destination: "/app/getOrders",
+        body: JSON.stringify(foodPartnerId),
+      });
+    });
+  },
+
+  subscribeToNewOrders(foodPartnerId: string, callback: (order: Order) => void) {
+    const stompClient = getStompClient();
+    if (!stompClient || !stompClient.connected) {
+      console.error("❌ Cannot subscribe, STOMP not connected");
+      return;
     }
+
+    return stompClient.subscribe(
+      `/topic/food-orders/${foodPartnerId}`,
+      (message) => {
+        try {
+          const order: Order = JSON.parse(message.body);
+          console.log("📢 New order received:", order);
+          callback(order);
+        } catch (err) {
+          console.error("❌ Failed to parse new order:", err);
+        }
+      },
+      { id: `food-orders-${foodPartnerId}` }
+    );
   },
 
   // Accept order
