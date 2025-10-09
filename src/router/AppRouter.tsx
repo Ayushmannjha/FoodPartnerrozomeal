@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext.tsx';
+import { OrderProvider } from '../context/OrderContext.tsx';
 import { PrivateRoute } from './PrivateRoute.tsx';
 import { PublicRoute } from './PublicRoute.tsx';
 
@@ -57,7 +58,9 @@ export function AppRouter() {
             path="/dashboard" 
             element={
               <PrivateRoute>
-                <DashboardPage />
+                <OrderProvider>
+                  <DashboardPage />
+                </OrderProvider>
               </PrivateRoute>
             }
           >

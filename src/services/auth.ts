@@ -20,7 +20,7 @@ export interface FoodPartner {
   id?: string;
 }
 
-export const API_BASE_URL = "https://api.rozomeal.com";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://api.rozomeal.com";
 
 // ===== Generic Request Function =====
 async function request<T>(

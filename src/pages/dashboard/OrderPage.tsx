@@ -1,70 +1,79 @@
-import { useState } from 'react';
-import { useOrders } from '../../hooks/useOrders';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { OrderCardSkeleton, StatsCardSkeleton } from '../../components/common/Skeleton';
-import { Alert, AlertDescription } from '../../components/ui/alert';
-import { OrderFilters } from '../../components/order/OrderFilters';
-import { EmptyOrderState } from '../../components/order/EmptyOrderState';
+import { useOrderContext, useOrderWebSocket } from '../../context/OrderContext';
+import { useOrderAccept } from '../../hooks/useOrderAccept';
+import { canAcceptOrder } from '../../utils/orderUtils';
 import { OrderCard } from '../../components/order/OrderCard';
 import { OrderPageHeader } from '../../components/order/OrderPageHeader';
-import type { Order } from '../../types/order';
-import { OrderStatus } from '../../types/order';
-import { AlertCircle, Package, Clock, CheckCircle, Bell } from 'lucide-react';
+import { OrderFilters } from '../../components/order/OrderFilters';
+import { EmptyOrderState } from '../../components/order/EmptyOrderState';
+import { Alert, AlertDescription } from '../../components/ui/alert';
+import { AlertCircle, Package, Clock, CheckCircle, Wifi, WifiOff } from 'lucide-react';
 
 export function OrderPage() {
-  const { orders, loading, error, refetch, acceptOrder, clearError } = useOrders();
   const { user } = useAuth();
+  const { state, updateOrder, setFilters } = useOrderContext();
+  const { 
+    wsConnected, 
+    wsError, 
+    refreshWebSocket,
+    removeOrder: removeFromWebSocket
+  } = useOrderWebSocket();
+  const { acceptOrder } = useOrderAccept(); // ✅ Use orderService via hook
   
-  // Local state for UI management
   const [acceptingOrders, setAcceptingOrders] = useState<Set<string>>(new Set());
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [showNotifications, setShowNotifications] = useState(true);
 
   // Filter orders based on current filters
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch = !searchTerm || 
-      order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.user.phone.includes(searchTerm);
+  const filteredOrders = state.orders.filter(order => {
+    const { filters } = state;
+    
+    const matchesSearch = !filters.searchTerm || 
+      order.orderId.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+      order.user.name.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+      order.user.phone.includes(filters.searchTerm);
 
-    const matchesStatus = filterStatus === 'all' || 
-      (filterStatus === 'pending' && (order.status === OrderStatus.PREPARING || order.status === 0)) ||
-      (filterStatus === 'accepted' && order.status !== OrderStatus.PREPARING && order.status !== 0);
+    const matchesStatus = filters.status === null || order.status === filters.status;
 
     return matchesSearch && matchesStatus;
   });
 
   // Categorize orders
-  const pendingOrders = orders.filter(order => order.status === OrderStatus.PREPARING || order.status === 0);
-  const activeOrders = orders.filter(order => 
-    order.status === OrderStatus.ON_THE_WAY || 
-    order.status === 1
-  );
-  const completedOrders = orders.filter(order => 
-    order.status === OrderStatus.DELIVERED || 
-    order.status === 2
-  );
+  const pendingOrders = state.orders.filter(order => canAcceptOrder(order.status));
+  const activeOrders = state.orders.filter(order => order.status === 1 || order.status === 2);
+  const completedOrders = state.orders.filter(order => order.status === 3);
 
   // Handle order acceptance
+  // ✅ Now uses orderService.acceptOrder() via useOrderAccept() hook
   const handleAcceptOrder = async (orderId: string): Promise<{ success: boolean; message: string }> => {
+    console.log('🎯 handleAcceptOrder called for orderId:', orderId);
+    
     if (!user?.id) {
+      console.error('❌ User not authenticated');
       return { success: false, message: 'User not authenticated' };
     }
 
     setAcceptingOrders(prev => new Set(prev).add(orderId));
 
     try {
+      console.log('📤 Accepting order via orderService...');
+      
       const result = await acceptOrder(orderId, user.id);
       
+      console.log('📥 Accept order result:', result);
+      
       if (result.success) {
-        // Refresh orders to get updated data
-        await refetch();
-        return { success: true, message: 'Order accepted successfully!' };
+        // ✅ Remove from WebSocket state via OrderContext (primary source)
+        console.log('✅ Order accepted successfully - removing from pending orders');
+        removeFromWebSocket(orderId);  // ✅ Use WebSocket removeOrder via OrderContext
+        
+        console.log('🎉 Order acceptance complete!');
+      } else {
+        console.error('❌ Order acceptance failed:', result.message);
       }
       
-      return result;
+      return result; // Returns {success, data, message}
     } catch (error) {
+      console.error('❌ Error accepting order:', error);
       return { 
         success: false, 
         message: error instanceof Error ? error.message : 'Failed to accept order' 
@@ -78,43 +87,21 @@ export function OrderPage() {
     }
   };
 
-  // Handle bulk accept for pending orders
-  const handleBulkAccept = async () => {
-    for (const order of pendingOrders) {
-      await handleAcceptOrder(order.orderId);
-    }
-  };
-
   // Handle filter changes
   const handleFilterChange = (filters: { status: string; search: string }) => {
-    setFilterStatus(filters.status);
-    setSearchTerm(filters.search);
+    setFilters({
+      status: filters.status === 'all' ? null : parseInt(filters.status),
+      searchTerm: filters.search
+    });
   };
 
   // Loading state
-  if (loading && orders.length === 0) {
+  if (state.loading && state.orders.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          {/* Loading Header */}
-          <div className="mb-6">
-            <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
-            <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
-          </div>
-
-          {/* Loading Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <StatsCardSkeleton />
-            <StatsCardSkeleton />
-            <StatsCardSkeleton />
-          </div>
-
-          {/* Loading Orders */}
-          <div className="space-y-4">
-            <OrderCardSkeleton />
-            <OrderCardSkeleton />
-            <OrderCardSkeleton />
-          </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading orders...</p>
         </div>
       </div>
     );
@@ -124,64 +111,53 @@ export function OrderPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-6">
         
-        {/* Page Header */}
-        <OrderPageHeader
-          title="Order Management"
-          subtitle="Manage your customer orders efficiently"
-          onRefresh={refetch}
-          isLoading={loading}
-        />
+        {/* WebSocket Status Indicator */}
+        <div className="mb-4 flex items-center justify-between">
+          <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+            wsConnected 
+              ? 'bg-green-100 text-green-800 border border-green-200' 
+              : 'bg-red-100 text-red-800 border border-red-200'
+          }`}>
+            {wsConnected ? <Wifi className="w-4 h-4 mr-2" /> : <WifiOff className="w-4 h-4 mr-2" />}
+            {wsConnected ? 'Real-time Connected' : 'Connection Lost'}
+          </div>
+          
+          {!wsConnected && (
+            <button
+              onClick={refreshWebSocket}
+              className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+            >
+              Reconnect
+            </button>
+          )}
+        </div>
 
-        {/* Error Alert */}
-        {error && (
+        {/* WebSocket Error Alert */}
+        {wsError && (
           <Alert className="mb-6 border-red-200 bg-red-50">
             <AlertCircle className="h-4 w-4 text-red-600" />
             <AlertDescription className="text-red-700">
-              {error}
-              <button
-                onClick={clearError}
-                className="ml-2 underline hover:no-underline font-medium"
-              >
-                Dismiss
-              </button>
+              WebSocket Error: {wsError}
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Notification Bar for Pending Orders */}
-        {pendingOrders.length > 0 && showNotifications && (
-          <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Bell className="h-5 w-5 text-yellow-600" />
-                <div>
-                  <p className="font-medium text-yellow-800">
-                    You have {pendingOrders.length} pending order{pendingOrders.length > 1 ? 's' : ''} waiting for acceptance
-                  </p>
-                  <p className="text-sm text-yellow-700">
-                    Accept orders quickly to provide better customer service
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                {pendingOrders.length > 1 && (
-                  <button
-                    onClick={handleBulkAccept}
-                    disabled={acceptingOrders.size > 0}
-                    className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 disabled:opacity-50 text-sm"
-                  >
-                    Accept All
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowNotifications(false)}
-                  className="text-yellow-600 hover:text-yellow-800"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-          </div>
+        {/* Page Header */}
+        <OrderPageHeader
+          title="Order Management"
+          subtitle="Manage your customer orders efficiently"
+          onRefresh={refreshWebSocket}
+          isLoading={state.loading}
+        />
+
+        {/* Error Alert */}
+        {state.error && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-700">
+              {state.error}
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* Order Statistics */}
@@ -189,7 +165,7 @@ export function OrderPage() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <StatCard
               title="Total Orders"
-              value={orders.length}
+              value={state.orders.length}
               icon={Package}
               color="blue"
             />
@@ -221,16 +197,16 @@ export function OrderPage() {
         </div>
 
         {/* Orders Content */}
-        {orders.length === 0 ? (
+        {state.orders.length === 0 ? (
           <EmptyOrderState
             title="No Orders Yet"
             description="You haven't received any orders yet. Orders will appear here when customers place them."
             actionButton={
               <button
-                onClick={refetch}
+                onClick={refreshWebSocket}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
-                Refresh Orders
+                Refresh Connection
               </button>
             }
           />
@@ -238,71 +214,18 @@ export function OrderPage() {
           <EmptyOrderState
             title="No Matching Orders"
             description="No orders match your current filters. Try adjusting your search criteria."
-            actionButton={
-              <button
-                onClick={() => {
-                  setFilterStatus('all');
-                  setSearchTerm('');
-                }}
-                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Clear Filters
-              </button>
-            }
           />
         ) : (
-          <div className="space-y-6">
-            
-            {/* Pending Orders Section */}
-            {pendingOrders.filter(order => 
-              filterStatus === 'all' || filterStatus === 'pending'
-            ).length > 0 && (
-              <OrderSection
-                title="Pending Orders"
-                orders={pendingOrders.filter(order => 
-                  !searchTerm || 
-                  order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  order.user.name.toLowerCase().includes(searchTerm.toLowerCase())
-                )}
+          <div className="space-y-4">
+            {filteredOrders.map(order => (
+              <OrderCard
+                key={order.orderId}
+                order={order}
                 onAccept={handleAcceptOrder}
-                acceptingOrders={acceptingOrders}
-                priority="high"
+                isAccepting={acceptingOrders.has(order.orderId)}
+                showDetails={false}
               />
-            )}
-
-            {/* Active Orders Section */}
-            {activeOrders.filter(order => 
-              filterStatus === 'all' || filterStatus === 'accepted'
-            ).length > 0 && (
-              <OrderSection
-                title="Active Orders"
-                orders={activeOrders.filter(order => 
-                  !searchTerm || 
-                  order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  order.user.name.toLowerCase().includes(searchTerm.toLowerCase())
-                )}
-                onAccept={handleAcceptOrder}
-                acceptingOrders={acceptingOrders}
-                priority="medium"
-              />
-            )}
-
-            {/* Completed Orders Section */}
-            {completedOrders.filter(order => 
-              filterStatus === 'all' || filterStatus === 'accepted'
-            ).length > 0 && (
-              <OrderSection
-                title="Completed Orders"
-                orders={completedOrders.filter(order => 
-                  !searchTerm || 
-                  order.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  order.user.name.toLowerCase().includes(searchTerm.toLowerCase())
-                )}
-                onAccept={handleAcceptOrder}
-                acceptingOrders={acceptingOrders}
-                priority="low"
-              />
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -310,76 +233,33 @@ export function OrderPage() {
   );
 }
 
-// Helper Components
+// StatCard Component
 interface StatCardProps {
   title: string;
   value: number;
-  icon: React.ComponentType<any>;
+  icon: React.ElementType;
   color: 'blue' | 'yellow' | 'orange' | 'green';
   highlight?: boolean;
 }
 
-function StatCard({ title, value, icon: Icon, color, highlight }: StatCardProps) {
+function StatCard({ title, value, icon: Icon, color, highlight = false }: StatCardProps) {
   const colorClasses = {
-    blue: 'text-blue-600',
-    yellow: 'text-yellow-600',
-    orange: 'text-orange-600',
-    green: 'text-green-600'
+    blue: 'bg-blue-50 text-blue-600',
+    yellow: 'bg-yellow-50 text-yellow-600',
+    orange: 'bg-orange-50 text-orange-600',
+    green: 'bg-green-50 text-green-600',
   };
 
   return (
-    <div className={`bg-white rounded-lg shadow p-4 ${highlight ? 'ring-2 ring-yellow-400' : ''}`}>
-      <div className="flex items-center">
-        <Icon className={`h-8 w-8 ${colorClasses[color]}`} />
-        <div className="ml-3">
-          <p className="text-sm font-medium text-gray-500">{title}</p>
-          <p className={`text-2xl font-bold ${colorClasses[color]}`}>{value}</p>
+    <div className={`bg-white rounded-lg shadow-sm p-6 ${highlight ? 'ring-2 ring-yellow-400' : ''}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium text-gray-600">{title}</p>
+          <p className="text-3xl font-bold text-gray-900 mt-2">{value}</p>
         </div>
-      </div>
-    </div>
-  );
-}
-
-interface OrderSectionProps {
-  title: string;
-  orders: Order[];
-  onAccept: (orderId: string) => Promise<{ success: boolean; message: string }>;
-  acceptingOrders: Set<string>;
-  priority: 'high' | 'medium' | 'low';
-}
-
-function OrderSection({ title, orders, onAccept, acceptingOrders, priority }: OrderSectionProps) {
-  if (orders.length === 0) return null;
-
-  const borderColor = {
-    high: 'border-yellow-200',
-    medium: 'border-orange-200',
-    low: 'border-green-200'
-  };
-
-  return (
-    <div className={`border-l-4 ${borderColor[priority]} pl-4`}>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-gray-900">
-          {title} ({orders.length})
-        </h2>
-        {priority === 'high' && orders.length > 1 && (
-          <span className="text-sm text-yellow-600 font-medium">
-            ⚡ Requires immediate attention
-          </span>
-        )}
-      </div>
-      
-      <div className="space-y-4">
-        {orders.map(order => (
-          <OrderCard
-            key={order.orderId}
-            order={order}
-            onAccept={onAccept}
-            isAccepting={acceptingOrders.has(order.orderId)}
-            showDetails={false}
-          />
-        ))}
+        <div className={`${colorClasses[color]} p-3 rounded-lg`}>
+          <Icon className="w-6 h-6" />
+        </div>
       </div>
     </div>
   );

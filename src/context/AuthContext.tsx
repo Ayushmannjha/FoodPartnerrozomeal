@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 🎯 Extract foodPartnerId from user object
   const foodPartnerId = user?.id || null;
+  const pincode = user?.pincode || null;
 
   // 🎯 Helper function to decode JWT and create user object
   const createUserFromToken = (token: string): User | null => {

@@ -1,11 +1,12 @@
 // src/hooks/useAssignedOrders.ts
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { orderService } from '../services/orderService';
 import { foodService } from '../services/foodService';
 import { thaliService } from '../services/thaliService';
-import { AssignedOrder, OrderStatus, UpdateOrderResponse } from '../types/order';
-import { Food } from '../types/food';
-import { Thali } from '../types/thali';
+import type { AssignedOrder, UpdateOrderResponse } from '../types/order';
+import { OrderStatus } from '../types/order';
+import type { Food } from '../types/food';
+import type { Thali } from '../types/thali';
 import { useAuth } from '../context/AuthContext';
 
 export interface AssignedOrderWithDetails extends AssignedOrder {
@@ -23,7 +24,7 @@ export interface AssignedOrderWithDetails extends AssignedOrder {
   }>;
 }
 
-export const useAssignedOrders = (autoRefresh = true, refreshInterval = 5000) => {
+export const useAssignedOrders = () => {
   const [assignedOrders, setAssignedOrders] = useState<AssignedOrderWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +32,6 @@ export const useAssignedOrders = (autoRefresh = true, refreshInterval = 5000) =>
   const { user } = useAuth();
   
   const foodPartnerId = user?.id || null;
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchAssignedOrdersWithDetails = async (showLoading = true) => {
     if (!foodPartnerId) {
@@ -183,40 +183,17 @@ export const useAssignedOrders = (autoRefresh = true, refreshInterval = 5000) =>
     }
   };
 
-  // Auto-refresh functionality
-  const startAutoRefresh = () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    
-    intervalRef.current = setInterval(() => {
-      console.log('🔄 Auto-refreshing assigned orders...');
-      fetchAssignedOrdersWithDetails(false);
-    }, refreshInterval);
-  };
+  // Auto-refresh functionality removed
 
-  const stopAutoRefresh = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  };
-
-  // Initial fetch and auto-refresh setup
+  // Initial fetch only (auto-refresh removed)
   useEffect(() => {
     if (foodPartnerId) {
       console.log('🔄 useAssignedOrders useEffect triggered with foodPartnerId:', foodPartnerId);
       fetchAssignedOrdersWithDetails();
-      
-      if (autoRefresh) {
-        startAutoRefresh();
-      }
     } else {
       console.log('⏳ Waiting for foodPartnerId...');
     }
-
-    return () => {
-      stopAutoRefresh();
-    };
-  }, [foodPartnerId, autoRefresh, refreshInterval]);
+  }, [foodPartnerId]);
 
   return {
     assignedOrders,
@@ -226,9 +203,6 @@ export const useAssignedOrders = (autoRefresh = true, refreshInterval = 5000) =>
     refetch: () => fetchAssignedOrdersWithDetails(true),
     updateOrderStatus,
     clearError: () => setError(null),
-    foodPartnerId,
-    startAutoRefresh,
-    stopAutoRefresh,
-    isAutoRefreshing: intervalRef.current !== null
+    foodPartnerId
   };
 };

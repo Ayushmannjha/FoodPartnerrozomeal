@@ -499,7 +499,7 @@ function ThaliItemCard({ thali }: ThaliItemCardProps) {
     }
     
     const cleanPath = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
-    return `https://api.rozomeal.com/${cleanPath}`;
+    return `https://api.rozomeal.com /${cleanPath}`;
   };
 
   return (
