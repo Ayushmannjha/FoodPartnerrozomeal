@@ -36,7 +36,7 @@ Add these to your Vercel project settings:
 
 ```bash
 # Required
-VITE_API_BASE_URL=https://api.rozomeal.com
+VITE_API_BASE_URL=https://api.rozomeal.com  
 
 # Optional - Analytics
 VITE_GA_ID=your_google_analytics_tracking_id

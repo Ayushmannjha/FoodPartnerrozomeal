@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
-import { OrderWithDetails } from '../types/order';
+import React, { createContext, useContext, useReducer, type ReactNode, useEffect, useCallback } from 'react';
+import type { Order } from '../types/order';
+import { useWebSocket } from '../hooks/useWebSocket';
 
 interface OrderState {
-  orders: OrderWithDetails[];
-  selectedOrder: OrderWithDetails | null;
+  orders: Order[];
+  selectedOrder: Order | null;
   loading: boolean;
   error: string | null;
   filters: {
@@ -15,12 +16,13 @@ interface OrderState {
 }
 
 type OrderAction =
-  | { type: 'SET_ORDERS'; payload: OrderWithDetails[] }
-  | { type: 'SET_SELECTED_ORDER'; payload: OrderWithDetails | null }
+  | { type: 'SET_ORDERS'; payload: Order[] }
+  | { type: 'ADD_ORDER'; payload: Order }
+  | { type: 'SET_SELECTED_ORDER'; payload: Order | null }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_FILTERS'; payload: Partial<OrderState['filters']> }
-  | { type: 'UPDATE_ORDER'; payload: OrderWithDetails }
+  | { type: 'UPDATE_ORDER'; payload: Order}
   | { type: 'REMOVE_ORDER'; payload: string };
 
 const initialState: OrderState = {
@@ -39,15 +41,37 @@ const initialState: OrderState = {
 const orderReducer = (state: OrderState, action: OrderAction): OrderState => {
   switch (action.type) {
     case 'SET_ORDERS':
-      return { ...state, orders: action.payload };
+      console.log('🔧 Reducer SET_ORDERS:', {
+        currentCount: state.orders.length,
+        newCount: action.payload.length,
+        newOrders: action.payload.map(o => o.orderId)
+      });
+      return { ...state, orders: action.payload, loading: false };
+    
+    case 'ADD_ORDER':
+      const orderExists = state.orders.some(order => order.orderId === action.payload.orderId);
+      if (orderExists) {
+        console.log('ℹ️ Reducer ADD_ORDER: Order already exists:', action.payload.orderId);
+        return state;
+      }
+      console.log('✅ Reducer ADD_ORDER: Adding new order:', action.payload.orderId);
+      return { 
+        ...state, 
+        orders: [action.payload, ...state.orders]
+      };
+    
     case 'SET_SELECTED_ORDER':
       return { ...state, selectedOrder: action.payload };
+    
     case 'SET_LOADING':
       return { ...state, loading: action.payload };
+    
     case 'SET_ERROR':
-      return { ...state, error: action.payload };
+      return { ...state, error: action.payload, loading: false };
+    
     case 'SET_FILTERS':
       return { ...state, filters: { ...state.filters, ...action.payload } };
+    
     case 'UPDATE_ORDER':
       return {
         ...state,
@@ -55,26 +79,118 @@ const orderReducer = (state: OrderState, action: OrderAction): OrderState => {
           order.orderId === action.payload.orderId ? action.payload : order
         )
       };
+    
     case 'REMOVE_ORDER':
       return {
         ...state,
         orders: state.orders.filter(order => order.orderId !== action.payload)
       };
+    
     default:
       return state;
   }
 };
 
-const OrderContext = createContext<{
+interface OrderContextType {
   state: OrderState;
   dispatch: React.Dispatch<OrderAction>;
-} | null>(null);
+  addOrder: (order: Order) => void;
+  updateOrder: (order: Order) => void;
+  removeOrder: (orderId: string) => void;  // ✅ Removes from both WebSocket and local state
+  setFilters: (filters: Partial<OrderState['filters']>) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  refreshWebSocket: () => void;
+  wsConnected: boolean;
+  wsError: string | null;
+  reconnectAttempts: number;
+  // ✅ Accept order via: orderService.acceptOrder() or useOrderAccept() hook
+  // ✅ Update status via: orderService.updateOrderStatus() or useOrders() hook
+}
+
+const OrderContext = createContext<OrderContextType | null>(null);
 
 export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(orderReducer, initialState);
 
+  const {
+    wsConnected,
+    wsError,
+    reconnectAttempts,
+    orders: receivedOrders,
+    refreshWebSocket,
+    removeOrder: removeFromWebSocket
+  } = useWebSocket();
+
+  useEffect(() => {
+    console.log('🔄 OrderContext: receivedOrders changed:', {
+      isNull: receivedOrders === null,
+      isArray: Array.isArray(receivedOrders),
+      length: receivedOrders?.length,
+      data: receivedOrders
+    });
+    
+    if (receivedOrders && Array.isArray(receivedOrders) && receivedOrders.length > 0) {
+      console.log('✅ OrderContext: Dispatching SET_ORDERS with', receivedOrders.length, 'orders');
+      dispatch({ type: 'SET_ORDERS', payload: receivedOrders });
+      dispatch({ type: 'SET_ERROR', payload: null });
+    } else if (receivedOrders && Array.isArray(receivedOrders) && receivedOrders.length === 0) {
+      console.log('ℹ️ OrderContext: Received empty orders array');
+    }
+  }, [receivedOrders]);
+
+  useEffect(() => {
+    if (wsError) {
+      console.error('🚨 WebSocket error in OrderContext:', wsError);
+      dispatch({ type: 'SET_ERROR', payload: 'WebSocket Error: ' + wsError });
+    }
+  }, [wsError]);
+
+  const addOrder = useCallback((order: Order) => {
+    dispatch({ type: 'ADD_ORDER', payload: order });
+  }, []);
+
+  const updateOrder = useCallback((order: Order) => {
+    dispatch({ type: 'UPDATE_ORDER', payload: order });
+  }, []);
+
+  const removeOrder = useCallback((orderId: string) => {
+    console.log('🎯 OrderContext removeOrder called for:', orderId);
+    // Remove from WebSocket state (primary source)
+    removeFromWebSocket(orderId);
+    // Also remove from local context state
+    dispatch({ type: 'REMOVE_ORDER', payload: orderId });
+  }, [removeFromWebSocket]);
+
+  const setFilters = useCallback((filters: Partial<OrderState['filters']>) => {
+    dispatch({ type: 'SET_FILTERS', payload: filters });
+  }, []);
+
+  const setLoading = useCallback((loading: boolean) => {
+    dispatch({ type: 'SET_LOADING', payload: loading });
+  }, []);
+
+  const setError = useCallback((error: string | null) => {
+    dispatch({ type: 'SET_ERROR', payload: error });
+  }, []);
+
+  const contextValue: OrderContextType = {
+    state,
+    dispatch,
+    addOrder,
+    updateOrder,
+    removeOrder,
+    setFilters,
+    setLoading,
+    setError,
+    refreshWebSocket,
+    wsConnected,
+    wsError,
+    reconnectAttempts,
+  };
+
   return (
-    <OrderContext.Provider value={{ state, dispatch }}>
+    <OrderContext.Provider value={contextValue}>
       {children}
     </OrderContext.Provider>
   );
@@ -86,4 +202,32 @@ export const useOrderContext = () => {
     throw new Error('useOrderContext must be used within an OrderProvider');
   }
   return context;
+};
+
+export const useOrderFilters = () => {
+  const { state, setFilters } = useOrderContext();
+  return {
+    filters: state.filters,
+    setFilters,
+  };
+};
+
+export const useOrderWebSocket = () => {
+  const { 
+    wsConnected, 
+    wsError, 
+    reconnectAttempts, 
+    refreshWebSocket,
+    removeOrder
+  } = useOrderContext();
+  
+  return {
+    wsConnected,
+    wsError,
+    reconnectAttempts,
+    refreshWebSocket,
+    removeOrder  // ✅ Export removeOrder for direct WebSocket order removal
+  };
+  // ✅ For accepting orders, use: orderService.acceptOrder() or useOrderAccept() hook
+  // ✅ For updating status, use: orderService.updateOrderStatus() or useOrders() hook
 };

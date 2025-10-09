@@ -10,7 +10,7 @@ export interface User {
   isActive?: boolean;
   city?: string;
   certifications?: string;
-  pincode:number;
+  pincode:string | null;
 }
 
 export interface ProfileResponse {

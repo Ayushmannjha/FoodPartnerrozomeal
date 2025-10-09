@@ -191,7 +191,7 @@ function FoodItemCard({
     
     // Remove leading slash to avoid double slashes
     const cleanPath = imageUrl.startsWith('/') ? imageUrl.slice(1) : imageUrl;
-    return `https://api.rozomeal.com/${cleanPath}`;
+    return `https://api.rozomeal.com  /${cleanPath}`;
   };
 
   const primaryImageUrl = getImageUrl(food.imageUrl);

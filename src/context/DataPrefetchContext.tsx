@@ -27,6 +27,7 @@ interface DataPrefetchProviderProps {
 export const DataPrefetchProvider: React.FC<DataPrefetchProviderProps> = ({ children }) => {
   const { user } = useAuth();
   const foodPartnerId = user?.id;
+  const pincode = user?.pincode;
 
   // Prefetch orders data in background
   const prefetchOrderData = useCallback(async () => {

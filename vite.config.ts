@@ -4,6 +4,9 @@ import path from 'path';
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    global: 'globalThis',
+  },
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
     alias: {
@@ -69,7 +72,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://api.rozomeal.com',
+        target: 'https://api.rozomeal.com  ',
         changeOrigin: true,
         secure: true,
         rewrite: (path: string) => path.replace(/^\/api/, ''),

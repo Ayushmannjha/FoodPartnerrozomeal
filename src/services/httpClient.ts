@@ -2,7 +2,7 @@ import { TokenManager } from '../utils/tokenManager';
 import { JWTUtils } from './jwtUtils';
 
 class HttpClient {
-  private baseURL = 'https://api.rozomeal.com';
+  private baseURL = import.meta.env.VITE_API_BASE_URL ?? 'https://api.rozomeal.com';
 
   private getHeaders(): HeadersInit {
     const token = TokenManager.getToken();
