@@ -3,7 +3,7 @@
 import { httpClient } from './httpClient';
 import { TokenManager } from '../utils/tokenManager';
 import { JWTUtils } from './jwtUtils';
-import { User, ProfileResponse } from '../types/user';
+import type { User, ProfileResponse } from '../types/user';
 
 // Add missing FoodPartner type
 export interface FoodPartner {
@@ -157,20 +157,30 @@ export async function login(email: string, password: string): Promise<string> {
 // ===== Updated Profile Functions with Query Parameters =====
 
 /**
- * GET Current User Profile - Uses /food-partner/profile?id={userId}
+ * 🧪 JWT Validation Helper
+ */
+function isValidJWT(token: string): boolean {
+  // JWT has 3 parts separated by dots
+  const parts = token.split('.');
+  return parts.length === 3 && parts.every(part => part.length > 0);
+}
+
+/**
+ * GET Current User Profile - Returns NEW JWT token with updated data
+ * This is called after profile updates to get a fresh JWT
  */
 export async function getCurrentUserProfile(): Promise<ProfileResponse> {
   try {
-    const token = TokenManager.getToken();
-    console.log('Profile fetch - token exists:', !!token);
+    console.log('🔍 ========== FETCHING USER PROFILE ==========');
     
+    const token = TokenManager.getToken();
     if (!token) {
       throw new Error('No authentication token found');
     }
 
     // Extract user ID from token
     const userId = JWTUtils.getUserId(token);
-    console.log('Extracted user ID for profile:', userId);
+    console.log('   👤 User ID:', userId);
 
     if (!userId) {
       throw new Error('Could not extract user ID from token');
@@ -180,16 +190,85 @@ export async function getCurrentUserProfile(): Promise<ProfileResponse> {
       throw new Error('No valid authentication token found');
     }
 
-    // GET profile endpoint with query parameter
-    console.log('Making profile request to:', `/food-partner/profile?id=${userId}`);
-    const profileData = await httpClient.get<User>(`/food-partner/profile?id=${userId}`);
+    console.log('   📅 Timestamp:', new Date().toISOString());
+    console.log('   🔗 Endpoint:', `/food-partner/profile?id=${userId}`);
+    console.log('=============================================');
+
+    // GET profile endpoint - returns JWT string with updated data
+    const response = await httpClient.get<string>(`/food-partner/profile?id=${userId}`);
     
+    console.log('✅ Profile API Response Received');
+    console.log('   📦 Response type:', typeof response);
+    
+    // Handle different response formats
+    let jwtToken: string;
+    
+    if (typeof response === 'string') {
+      jwtToken = response.trim();
+    } else if (typeof response === 'object' && response !== null) {
+      // If response is wrapped in object
+      const responseObj = response as any;
+      jwtToken = responseObj.token || responseObj.data || responseObj.jwt || '';
+    } else {
+      throw new Error(`Unexpected response format: ${typeof response}`);
+    }
+
+    console.log('   📦 Extracted token (first 50 chars):', jwtToken.substring(0, 50) + '...');
+    
+    // Validate JWT format
+    if (!isValidJWT(jwtToken)) {
+      console.error('❌ Invalid JWT format received');
+      console.error('   Token:', jwtToken);
+      throw new Error('Profile API did not return a valid JWT token');
+    }
+    
+    console.log('✅ Valid JWT token received');
+    
+    // Decode to verify and log data
+    try {
+      const decoded = JWTUtils.decode(jwtToken) as any;
+      console.log('🔓 Decoded new token:');
+      console.log('   📍 Pincode:', decoded?.pincode);
+      console.log('   📧 Email:', decoded?.email);
+      console.log('   📛 Name:', decoded?.name);
+      console.log('   📱 Phone:', decoded?.phone);
+      console.log('   🏠 Address:', decoded?.address);
+    } catch (decodeError) {
+      console.error('⚠️ Could not decode token, but format is valid:', decodeError);
+    }
+    
+    // Decode the JWT to User object for return
+    const decoded = JWTUtils.decode(jwtToken) as any;
+    if (!decoded) {
+      throw new Error('Failed to decode JWT token');
+    }
+
+    const userData: User = {
+      id: decoded.id || decoded.sub || decoded.userId,
+      name: decoded.name,
+      email: decoded.email,
+      phone: decoded.phone,
+      role: decoded.role,
+      address: decoded.address,
+      city: decoded.city,
+      state: decoded.state,
+      licenseNumber: decoded.licenseNumber,
+      certifications: decoded.certifications,
+      pincode: decoded.pincode,
+      chatId: decoded.chatId || null,
+      isActive: true
+    };
+
     return {
       success: true,
-      data: profileData
+      data: userData,
+      token: jwtToken // Include the token for updating AuthContext
     };
+    
   } catch (error) {
-    console.error('Error fetching user profile:', error);
+    console.error('❌ ========== PROFILE FETCH FAILED ==========');
+    console.error('   Error:', error);
+    console.error('============================================');
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -253,7 +332,7 @@ export async function updateUserProfile(profileData: Partial<User>): Promise<Pro
         // Handle JWT token response (in case backend changes to return JWT)
         console.log('Backend returned JWT token, decoding...');
         
-        const decodedProfile = JWTUtils.decode(responseData);
+        const decodedProfile = JWTUtils.decode(responseData) as any;
         if (decodedProfile && decodedProfile.id) {
           const userProfile: User = {
             id: decodedProfile.id,
@@ -266,6 +345,8 @@ export async function updateUserProfile(profileData: Partial<User>): Promise<Pro
             state: decodedProfile.state || undefined,
             city: decodedProfile.city || undefined,
             certifications: decodedProfile.certifications || undefined,
+            pincode: decodedProfile.pincode || null,
+            chatId: decodedProfile.chatId || null,
             isActive: true
           };
           

@@ -21,6 +21,11 @@ export const ProfessionalSection = ({ user }: ProfessionalSectionProps) => (
         value={user.certifications || 'Not provided'}
         icon={<CertificationIcon />}
       />
+      <DisplayField
+        label="Chat ID"
+        value={user.chatId || 'Not provided'}
+        icon={<CertificationIcon />}
+      />
     </div>
   </ProfileCard>
 );

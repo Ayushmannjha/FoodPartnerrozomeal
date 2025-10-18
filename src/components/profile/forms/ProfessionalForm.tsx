@@ -27,6 +27,15 @@ export const ProfessionalForm = ({ formData, onChange }: ProfessionalFormProps) 
         placeholder="Enter your certifications"
         icon={<CertificationIcon />}
       />
+
+      <InputField
+        label="Chat ID"
+        name="chatId"
+        value={formData.chatId || ''}
+        onChange={onChange}
+        placeholder="Enter your chat ID"
+        icon={<CertificationIcon />}
+       />
     </div>
   </ProfileCard>
 );

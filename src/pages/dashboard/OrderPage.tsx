@@ -1,25 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useOrderContext, useOrderWebSocket } from '../../context/OrderContext';
 import { useOrderAccept } from '../../hooks/useOrderAccept';
 import { canAcceptOrder } from '../../utils/orderUtils';
+import { needsPincodeSetup } from '../../utils/pincodeUtils';
 import { OrderCard } from '../../components/order/OrderCard';
 import { OrderPageHeader } from '../../components/order/OrderPageHeader';
 import { OrderFilters } from '../../components/order/OrderFilters';
 import { EmptyOrderState } from '../../components/order/EmptyOrderState';
-import { Alert, AlertDescription } from '../../components/ui/alert';
-import { AlertCircle, Package, Clock, CheckCircle, Wifi, WifiOff } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
+import { AlertCircle, Package, Clock, CheckCircle, RefreshCw, MapPin } from 'lucide-react';
+import { Button } from '../../components/ui/button';
+import { useNavigate } from 'react-router-dom';
 
 export function OrderPage() {
   const { user } = useAuth();
-  const { state, updateOrder, setFilters } = useOrderContext();
+  const { state, setFilters } = useOrderContext();
   const { 
-    wsConnected, 
-    wsError, 
+    wsConnected,
+    isInitialLoadComplete,
     refreshWebSocket,
     removeOrder: removeFromWebSocket
   } = useOrderWebSocket();
   const { acceptOrder } = useOrderAccept(); // ✅ Use orderService via hook
+  const navigate = useNavigate();
   
   const [acceptingOrders, setAcceptingOrders] = useState<Set<string>>(new Set());
 
@@ -95,6 +99,18 @@ export function OrderPage() {
     });
   };
 
+  // Check if pincode is missing or invalid using utility function
+  const needsPincode = needsPincodeSetup(user?.pincode);
+
+  useEffect(() => {
+    if (needsPincode) {
+      console.log('⚠️ Pincode is invalid or missing:', {
+        pincode: user?.pincode,
+        needsSetup: needsPincode
+      });
+    }
+  }, [user?.pincode, needsPincode]);
+
   // Loading state
   if (state.loading && state.orders.length === 0) {
     return (
@@ -111,44 +127,82 @@ export function OrderPage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 py-6">
         
-        {/* WebSocket Status Indicator */}
-        <div className="mb-4 flex items-center justify-between">
-          <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-            wsConnected 
-              ? 'bg-green-100 text-green-800 border border-green-200' 
-              : 'bg-red-100 text-red-800 border border-red-200'
-          }`}>
-            {wsConnected ? <Wifi className="w-4 h-4 mr-2" /> : <WifiOff className="w-4 h-4 mr-2" />}
-            {wsConnected ? 'Real-time Connected' : 'Connection Lost'}
-          </div>
-          
-          {!wsConnected && (
-            <button
-              onClick={refreshWebSocket}
-              className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-            >
-              Reconnect
-            </button>
-          )}
-        </div>
-
-        {/* WebSocket Error Alert */}
-        {wsError && (
-          <Alert className="mb-6 border-red-200 bg-red-50">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-700">
-              WebSocket Error: {wsError}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Page Header */}
         <OrderPageHeader
           title="Order Management"
           subtitle="Manage your customer orders efficiently"
           onRefresh={refreshWebSocket}
           isLoading={state.loading}
         />
+
+        {/* Pincode Warning Banner - Only show if pincode is invalid */}
+        {needsPincode && (
+          <div className="mb-6">
+            <Alert variant="destructive" className="border-amber-600 bg-amber-100">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              <AlertTitle className="text-amber-900 font-semibold">
+                Pincode Required
+              </AlertTitle>
+              <AlertDescription className="text-amber-800">
+                <p className="mb-3">
+                  Your delivery area pincode is not set or invalid. You cannot receive orders until you set a valid 6-digit pincode.
+                </p>
+                <Button
+                  onClick={() => navigate('/dashboard/profile')}
+                  className="bg-amber-600 hover:bg-amber-700"
+                >
+                  <MapPin className="mr-2 h-4 w-4" />
+                  Go to Profile & Set Pincode
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
+        {/* Connection Status Banner - Only show if pincode is valid */}
+        {!needsPincode && (
+          <div className="mb-6 border rounded-lg bg-background px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {!isInitialLoadComplete ? (
+                  <>
+                    <div className="h-2 w-2 animate-pulse rounded-full bg-amber-500"></div>
+                    <span className="text-sm text-muted-foreground">Loading recent orders...</span>
+                  </>
+                ) : (
+                  <>
+                    <div 
+                      className={`h-2 w-2 rounded-full ${
+                        wsConnected ? 'bg-green-500' : 'bg-red-500'
+                      }`}
+                    ></div>
+                    <span className="text-sm text-muted-foreground">
+                      {wsConnected 
+                        ? 'Connected - Real-time updates active' 
+                        : 'Disconnected - Reconnecting...'
+                      }
+                    </span>
+                    {user?.pincode && (
+                      <span className="ml-2 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-800">
+                        Pincode: {user.pincode}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={refreshWebSocket}
+                disabled={!isInitialLoadComplete}
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh Orders
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Error Alert */}
         {state.error && (
@@ -196,8 +250,37 @@ export function OrderPage() {
           <OrderFilters onFilterChange={handleFilterChange} />
         </div>
 
-        {/* Orders Content */}
-        {state.orders.length === 0 ? (
+        {/* Orders Content - Show different states based on pincode */}
+        {needsPincode ? (
+          // Show pincode setup prompt instead of orders
+          <div className="py-12 text-center">
+            <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-amber-100">
+              <MapPin className="h-12 w-12 text-amber-600" />
+            </div>
+            <h3 className="mt-4 text-xl font-semibold text-gray-900">
+              Pincode Not Set
+            </h3>
+            <p className="mt-2 text-gray-600 max-w-md mx-auto">
+              Please set your delivery area pincode in your profile to start receiving orders.
+              This helps us show you only relevant orders from your area.
+            </p>
+            <Button
+              onClick={() => navigate('/dashboard/profile')}
+              className="mt-6"
+              size="lg"
+            >
+              <MapPin className="mr-2 h-5 w-5" />
+              Set Pincode in Profile
+            </Button>
+          </div>
+        ) : !isInitialLoadComplete ? (
+          // Loading state
+          <div className="py-12 text-center">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
+            <p className="mt-4 text-muted-foreground">Loading your orders...</p>
+          </div>
+        ) : state.orders.length === 0 ? (
+          // No orders yet
           <EmptyOrderState
             title="No Orders Yet"
             description="You haven't received any orders yet. Orders will appear here when customers place them."
@@ -211,11 +294,13 @@ export function OrderPage() {
             }
           />
         ) : filteredOrders.length === 0 ? (
+          // Filtered out
           <EmptyOrderState
             title="No Matching Orders"
             description="No orders match your current filters. Try adjusting your search criteria."
           />
         ) : (
+          // Show orders list
           <div className="space-y-4">
             {filteredOrders.map(order => (
               <OrderCard

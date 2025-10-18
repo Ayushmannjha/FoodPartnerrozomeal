@@ -1,6 +1,8 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext.tsx';
 import { OrderProvider } from '../context/OrderContext.tsx';
+import { NotificationProvider } from '../context/NotificationContext.tsx';
+import { OrderNotificationModal } from '../components/notification/OrderNotificationModal.tsx';
 import { PrivateRoute } from './PrivateRoute.tsx';
 import { PublicRoute } from './PublicRoute.tsx';
 
@@ -13,7 +15,7 @@ import { DashboardPage } from '../pages/dashboard/DashboardPage.tsx';
 import { DashboardHome } from '../pages/dashboard/DashboardHome.tsx';
 import { ProfilePage } from '../pages/dashboard/ProfilePage.tsx';
 import { AssignedFoodPage } from '../pages/dashboard/AssignedFoodPage.tsx';
-import { AnalyticsPage } from '../pages/dashboard/AnalyticsPage.tsx';
+import { HistoryPage } from '../pages/dashboard/History.tsx';
 import { SettingsPage } from '../pages/dashboard/SettingsPage.tsx';
 import { OrderAssignedPage } from '../pages/dashboard/OrderAssignedPage.tsx';
 import { OrderPage } from '../pages/dashboard/OrderPage.tsx';
@@ -34,48 +36,53 @@ export function AppRouter() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
-          {/* Public Routes */}
-          <Route 
-            path="/" 
-            element={
-              <PublicRoute>
-                <HomePage />
-              </PublicRoute>
-            } 
-          />
-          <Route 
-            path="/login" 
-            element={
-              <PublicRoute>
-                <LoginPage />
-              </PublicRoute>
-            } 
-          />
+        <NotificationProvider>
+          <Routes>
+            {/* Public Routes */}
+            <Route 
+              path="/" 
+              element={
+                <PublicRoute>
+                  <HomePage />
+                </PublicRoute>
+              } 
+            />
+            <Route 
+              path="/login" 
+              element={
+                <PublicRoute>
+                  <LoginPage />
+                </PublicRoute>
+              } 
+            />
 
-          {/* Private Routes */}
-          <Route 
-            path="/dashboard" 
-            element={
-              <PrivateRoute>
-                <OrderProvider>
-                  <DashboardPage />
-                </OrderProvider>
-              </PrivateRoute>
-            }
-          >
-            <Route index element={<DashboardHome />} />
-            <Route path="profile" element={<ProfilePage />} />
-            <Route path="assigned" element={<AssignedFoodPage />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-              <Route path="order-assigned" element={<OrderAssignedPage />} />
-                <Route path="order" element={<OrderPage />} />
-          </Route>
+            {/* Private Routes */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <PrivateRoute>
+                  <OrderProvider>
+                    <DashboardPage />
+                  </OrderProvider>
+                </PrivateRoute>
+              }
+            >
+              <Route index element={<DashboardHome />} />
+              <Route path="profile" element={<ProfilePage />} />
+              <Route path="assigned" element={<AssignedFoodPage />} />
+              <Route path="history" element={<HistoryPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+                <Route path="order-assigned" element={<OrderAssignedPage />} />
+                  <Route path="order" element={<OrderPage />} />
+            </Route>
 
-          {/* 404 Route */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+            {/* 404 Route */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+          
+          {/* Global Notification Modal - Renders on all pages */}
+          <OrderNotificationModal />
+        </NotificationProvider>
       </AuthProvider>
     </Router>
   );

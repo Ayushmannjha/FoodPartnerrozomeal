@@ -51,7 +51,8 @@ export function ProfilePage() {
         city: currentUser.city || '',
         certifications: currentUser.certifications || '',
         address: currentUser.address || '',
-        pincode: currentUser.pincode || ''
+        pincode: currentUser.pincode || '',
+        chatId: currentUser.chatId || ''
       });
     }
   }, [profileData, user]);
@@ -87,7 +88,8 @@ export function ProfilePage() {
         city: currentUser.city || '',
         certifications: currentUser.certifications || '',
         address: currentUser.address || '',
-        pincode: currentUser.pincode || ''
+        pincode: currentUser.pincode || '',
+        chatId: currentUser.chatId || ''
       });
     }
     setIsEditing(false);
