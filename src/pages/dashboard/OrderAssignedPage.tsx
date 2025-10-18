@@ -35,14 +35,14 @@ export function OrderAssignedPage() {
   // In your OrderAssignedPage.tsx component
 const getNextStatusOptions = (currentStatus: number): OrderStatus[] => {
   switch (currentStatus) {
-    case OrderStatus.PREPARING:    // 0 → Can mark ready for delivery
-      return [OrderStatus.ON_THE_WAY];  // [1]
-    
-    case OrderStatus.ON_THE_WAY:   // 1 → Can mark delivered
-      return [OrderStatus.DELIVERED];   // [2]
-    
-    case OrderStatus.DELIVERED:    // 2 → Order complete, no more actions
-    case OrderStatus.CANCELLED:    // 3 → Order cancelled, no more actions
+    case OrderStatus.accept_order:    // 0 → Can mark ready for delivery
+      return [OrderStatus.preparing_order];  // [1]
+
+    case OrderStatus.preparing_order:   // 1 → Can mark delivered
+      return [OrderStatus.delivery_order];   // [2]
+
+    case OrderStatus.delivery_order:    // 2 → Order complete, no more actions
+    case OrderStatus.cancel_order:    // 3 → Order cancelled, no more actions
       return [];
     
     default:
@@ -158,19 +158,19 @@ const handleStatusUpdate = async (orderId: string, newStatus: OrderStatus) => {
   <div className="bg-white p-4 rounded-lg shadow">
     <h3 className="text-sm font-medium text-gray-500">Preparing</h3>
     <p className="text-2xl font-bold text-orange-600">
-      {assignedOrders.filter(order => order.order.status === OrderStatus.PREPARING).length}
+      {assignedOrders.filter(order => order.order.status === OrderStatus.accept_order).length}
     </p>
   </div>
   <div className="bg-white p-4 rounded-lg shadow">
     <h3 className="text-sm font-medium text-gray-500">On the Way</h3>
     <p className="text-2xl font-bold text-blue-600">
-      {assignedOrders.filter(order => order.order.status === OrderStatus.ON_THE_WAY).length}
+      {assignedOrders.filter(order => order.order.status === OrderStatus.preparing_order).length}
     </p>
   </div>
   <div className="bg-white p-4 rounded-lg shadow">
     <h3 className="text-sm font-medium text-gray-500">Delivered</h3>
     <p className="text-2xl font-bold text-green-600">
-      {assignedOrders.filter(order => order.order.status === OrderStatus.DELIVERED).length}
+      {assignedOrders.filter(order => order.order.status === OrderStatus.delivery_order).length}
     </p>
   </div>
 </div>
@@ -274,14 +274,14 @@ function OrderCard({
     onClick={() => onStatusUpdate(order.orderId, status)}
     disabled={isUpdating}
     className={`px-3 py-1 text-black text-xs rounded-md disabled:opacity-50 ${
-      status === OrderStatus.ON_THE_WAY ? 'bg-blue-600 hover:bg-blue-700' :
-      status === OrderStatus.DELIVERED ? 'bg-green-600 hover:bg-green-700' :
+      status === OrderStatus.preparing_order ? 'bg-blue-600 hover:bg-blue-700' :
+      status === OrderStatus.delivery_order ? 'bg-green-600 hover:bg-green-700' :
       'bg-gray-600 hover:bg-gray-700'
     }`}
   >
     {isUpdating ? '⏳ Updating...' : 
-     status === OrderStatus.ON_THE_WAY ? 'Ready for Delivery' :
-     status === OrderStatus.DELIVERED ? 'Mark Delivered' :
+     status === OrderStatus.preparing_order ? 'Mark preparing' :
+     status === OrderStatus.delivery_order ? 'Mark ready to Delivered' :
      `Mark ${ORDER_STATUS_LABELS[status]}`
     }
   </button>

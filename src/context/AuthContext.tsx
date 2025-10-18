@@ -1,8 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { isLoggedIn, logout as logoutService, getCurrentUserProfile } from '../services/auth';
 import { TokenManager } from '../utils/tokenManager';
-import { JWTUtils } from '../services/jwtUtils';
-import { User } from '../types/user';
+import type { User } from '../types/user';
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -12,6 +11,7 @@ interface AuthContextType {
   logout: () => void;
   loading: boolean;
   refreshProfile: () => Promise<User | null>;
+  refreshAuth: () => Promise<void>;
   tokenInfo: any;
 }
 
@@ -25,7 +25,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 🎯 Extract foodPartnerId from user object
   const foodPartnerId = user?.id || null;
-  const pincode = user?.pincode || null;
 
   // 🎯 Helper function to decode JWT and create user object
   const createUserFromToken = (token: string): User | null => {
@@ -55,7 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         state: payload.state,
         licenseNumber: payload.licenseNumber,
         certifications: payload.certifications,
-        pincode: payload.pincode
+        pincode: payload.pincode,
+        chatId: payload.chatId || null
       };
       
       console.log('👤 Created user object:', userData);
@@ -162,6 +162,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return null;
   };
 
+  const refreshAuth = async () => {
+    console.log('🔄 refreshAuth called - fetching updated profile from API');
+    
+    if (!isAuthenticated || !TokenManager.hasValidToken()) {
+      console.warn('⚠️ Cannot refresh: not authenticated or no valid token');
+      return;
+    }
+
+    try {
+      // Fetch the updated profile from the API
+      const profileResult = await getCurrentUserProfile();
+      
+      if (profileResult.success && profileResult.data) {
+        console.log('✅ Profile refreshed successfully:', {
+          id: profileResult.data.id,
+          pincode: profileResult.data.pincode,
+          name: profileResult.data.name
+        });
+        setUser(profileResult.data);
+      } else {
+        console.error('❌ Failed to refresh profile:', profileResult.error);
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing auth:', error);
+    }
+  };
+
   return (
     <AuthContext.Provider 
       value={{ 
@@ -172,6 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout, 
         loading,
         refreshProfile,
+        refreshAuth,
         tokenInfo
       }}
     >

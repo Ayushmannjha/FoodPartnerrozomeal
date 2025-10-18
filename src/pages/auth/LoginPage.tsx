@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { login as loginService } from '../../services/auth';
-import { PartnerForm } from '../../components/contact/PartnerForm';
-import { Dialog, DialogContent } from '../../components/ui/dialog'; // Assuming you have Dialog from shadcn/ui
+import { Alert, AlertDescription } from '../../components/ui/alert';
+import { CheckCircle2 } from 'lucide-react';
+import {PartnerForm  }from '../../components/contact/PartnerForm';
 
 interface LoginFormData {
   email: string;
@@ -14,22 +15,38 @@ interface LocationState {
   from?: {
     pathname: string;
   };
+  registrationSuccess?: boolean;
+  email?: string;
 }
 
 export function LoginPage() {
+  const navigate = useNavigate();
+  const location = useLocation() as { state?: LocationState };
+  const { login } = useAuth();
+  
+  // Check if coming from registration
+  const registrationSuccess = location.state?.registrationSuccess || false;
+  const prefilledEmail = location.state?.email || '';
+  
   const [formData, setFormData] = useState<LoginFormData>({
-    email: '',
+    email: prefilledEmail, // Pre-fill email if coming from registration
     password: ''
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
-  const [isRegisterModalOpen, setIsRegisterModalOpen] = useState<boolean>(false);
-
-  const navigate = useNavigate();
-  const location = useLocation() as { state?: LocationState };
-  const { login } = useAuth();
+  const [showSuccessMessage, setShowSuccessMessage] = useState<boolean>(registrationSuccess);
 
   const from = location.state?.from?.pathname || '/dashboard';
+
+  // Hide success message after 5 seconds
+  useEffect(() => {
+    if (showSuccessMessage) {
+      const timer = setTimeout(() => {
+        setShowSuccessMessage(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessMessage]);
 
   const handleInputChange = (field: keyof LoginFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -40,54 +57,26 @@ export function LoginPage() {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setShowSuccessMessage(false);
 
     try {
+      console.log('🔄 Attempting login...');
       // Call the loginService function from auth.ts
       const token = await loginService(formData.email, formData.password);
       
+      console.log('✅ Login successful!');
       // Update auth context with the token
       login(token);
       
       // Navigate to intended page or dashboard
       navigate(from, { replace: true });
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('❌ Login failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Login failed. Please try again.';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Add this to your LoginPage.tsx for testing
-  const debugLogin = async () => {
-    console.log('=== DEBUG LOGIN START ===');
-    
-    // Check what the server actually returns
-    try {
-      const response = await fetch('/api/auth/login?email=test@example.com&password=password123', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      console.log('Raw response status:', response.status);
-      console.log('Raw response headers:', Object.fromEntries(response.headers.entries()));
-      
-      const rawToken = await response.text();
-      console.log('Raw token received:', rawToken);
-      console.log('Token length:', rawToken.length);
-      console.log('Token parts:', rawToken.split('.').length);
-      
-    } catch (error) {
-      console.error('Debug login failed:', error);
-    }
-    
-    console.log('=== DEBUG LOGIN END ===');
-  };
-
-  const openRegisterModal = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsRegisterModalOpen(true);
   };
 
   return (
@@ -103,6 +92,20 @@ export function LoginPage() {
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Registration Success Alert */}
+          {showSuccessMessage && (
+            <Alert className="bg-green-50 border-green-200 animate-fade-in">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <AlertDescription className="text-green-800 ml-2">
+                <p className="font-semibold">Registration Successful! 🎉</p>
+                <p className="text-sm mt-1">
+                  Welcome to Rozomeal! Please login to complete your profile.
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Error Alert */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-3">
               <p className="text-red-600 text-sm">{error}</p>
@@ -122,6 +125,7 @@ export function LoginPage() {
               required
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              autoFocus={!prefilledEmail} // Auto-focus email if not pre-filled
             />
           </div>
           
@@ -138,12 +142,13 @@ export function LoginPage() {
               required
               disabled={isLoading}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              autoFocus={!!prefilledEmail} // Auto-focus password if email is pre-filled
             />
           </div>
           
           <button 
             type="submit" 
-            className="w-full bg-orange-600 hover:bg-orange-700 text-black py-3 rounded-md font-semibold disabled:opacity-50"
+            className="w-full bg-orange-600 hover:bg-orange-700 text-black py-3 rounded-md font-semibold disabled:opacity-50 transition-colors"
             disabled={isLoading}
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
@@ -153,25 +158,15 @@ export function LoginPage() {
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
-            <a 
-              href="#" 
-              onClick={openRegisterModal}
+            <Link 
+              to="/" 
               className="text-orange-600 hover:text-orange-700 font-medium"
             >
               Register here
-            </a>
+            </Link>
           </p>
         </div>
       </div>
-
-      {/* Registration Modal */}
-      <Dialog open={isRegisterModalOpen} onOpenChange={setIsRegisterModalOpen}>
-  <DialogContent className="sm:max-w-[95%] md:max-w-lg lg:max-w-xl p-0 bg-transparent border-none shadow-none">
-    <div className="max-h-[85vh] overflow-y-auto">
-      <PartnerForm />
-    </div>
-  </DialogContent>
-</Dialog>
     </div>
   );
 }

@@ -11,10 +11,12 @@ export interface User {
   city?: string;
   certifications?: string;
   pincode:string | null;
+  chatId:string | null;
 }
 
 export interface ProfileResponse {
   success: boolean;
   data?: User;
   error?: string;
+  token?: string; // JWT token returned from profile API
 }

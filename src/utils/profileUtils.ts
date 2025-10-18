@@ -26,6 +26,7 @@ export const profileUtils = {
             city: extendedPayload.city || '',
             certifications: extendedPayload.certifications || '',
             pincode: extendedPayload.pincode || 0,
+            chatId: extendedPayload.chatId || 0,
             isActive: true
           };
         }
@@ -46,7 +47,7 @@ export const profileUtils = {
   calculateCompletion: (user: User | null): number => {
     if (!user) return 0;
     
-    const fields = ['name', 'email', 'phone', 'licenseNumber', 'state', 'city', 'address'];
+    const fields = ['name', 'email', 'phone', 'licenseNumber', 'state', 'city', 'address',];
     const filledFields = fields.filter(field => user[field as keyof User]);
     
     return Math.round((filledFields.length / fields.length) * 100);
