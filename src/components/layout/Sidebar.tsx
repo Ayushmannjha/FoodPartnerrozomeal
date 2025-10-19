@@ -27,8 +27,7 @@ export function Sidebar() {
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: <Home className="h-5 w-5" /> },
     { name: 'Orders', href: '/dashboard/order', icon: <Package className="h-5 w-5" /> },
-    { name: 'Assigned', href: '/dashboard/assigned', icon: <ChefHat className="h-5 w-5" /> },
-    { name: 'Analytics', href: '/dashboard/analytics', icon: <BarChart2 className="h-5 w-5" /> },
+    { name: 'Orders History', href: '/dashboard/history', icon: <ChefHat className="h-5 w-5" /> },
     { name: 'Profile', href: '/dashboard/profile', icon: <User className="h-5 w-5" /> },
     { name: 'Settings', href: '/dashboard/settings', icon: <Settings className="h-5 w-5" /> },
     { name: 'Order Assigned', href: '/dashboard/order-assigned', icon: <Package className="h-5 w-5" /> },

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom"; // Add this import
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -10,7 +11,12 @@ import { registerFoodPartner, type FoodPartner } from "../../services/auth";
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
-export function PartnerForm() {
+interface PartnerFormProps {
+  onSuccess?: () => void; // Optional callback for modal usage
+}
+
+export function PartnerForm({ onSuccess }: PartnerFormProps = {}) {
+  const navigate = useNavigate(); // Add navigation hook
   const [formData, setFormData] = useState<FoodPartner>({
     name: "",
     email: "",
@@ -96,15 +102,13 @@ export function PartnerForm() {
     setSuccess('');
 
     try {
+      console.log('🔄 Starting registration...');
       await registerFoodPartner(formData);
-      setSuccess("✅ Registration successful! Your account has been created.");
       
-      // Show the address update notification after successful registration
-      setTimeout(() => {
-        setSuccess("✅ Registration successful! Please update your address and pincode to complete your profile. This information is necessary for order delivery.");
-      }, 1500);
+      console.log('✅ Registration successful!');
+      setSuccess("✅ Registration successful! Redirecting to login page...");
       
-      // Reset form after successful submission
+      // Reset form
       setFormData({
         name: "",
         email: "",
@@ -115,8 +119,27 @@ export function PartnerForm() {
       setPasswordErrors([]);
       setShowPassword(false);
       setShowConfirmPassword(false);
+      
+      // Wait 2 seconds to show success message, then navigate
+      setTimeout(() => {
+        console.log('🔄 Navigating to login page...');
+        
+        // If used in a modal with onSuccess callback, call it
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          // Otherwise, navigate to login page directly
+          navigate('/login', { 
+            state: { 
+              registrationSuccess: true,
+              email: formData.email // Pre-fill email on login page
+            } 
+          });
+        }
+      }, 2000);
+      
     } catch (error) {
-      console.error('Registration failed:', error);
+      console.error('❌ Registration failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Registration failed. Please try again.';
       setError(`❌ ${errorMessage}`);
     } finally {
@@ -142,7 +165,12 @@ export function PartnerForm() {
           {success && (
             <div className="bg-green-50 border border-green-200 rounded-md p-3 flex items-start">
               <CheckCircle className="text-green-600 mr-2 h-5 w-5 mt-0.5" />
-              <p className="text-green-600 text-sm">{success}</p>
+              <div>
+                <p className="text-green-600 text-sm font-medium">{success}</p>
+                <p className="text-green-600 text-xs mt-1">
+                  Please login to complete your profile with address and pincode.
+                </p>
+              </div>
             </div>
           )}
 

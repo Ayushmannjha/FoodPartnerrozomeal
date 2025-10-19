@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, type ReactNode, useEffect, useCallback } from 'react';
 import type { Order } from '../types/order';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { useNotification } from '../hooks/useNotification';
 
 interface OrderState {
   orders: Order[];
@@ -104,6 +105,7 @@ interface OrderContextType {
   wsConnected: boolean;
   wsError: string | null;
   reconnectAttempts: number;
+  isInitialLoadComplete: boolean; // ✅ Added to track initial load completion
   // ✅ Accept order via: orderService.acceptOrder() or useOrderAccept() hook
   // ✅ Update status via: orderService.updateOrderStatus() or useOrders() hook
 }
@@ -112,16 +114,21 @@ const OrderContext = createContext<OrderContextType | null>(null);
 
 export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(orderReducer, initialState);
+  const [previousOrderIds, setPreviousOrderIds] = React.useState<Set<string>>(new Set());
+  const [isInitialLoadDone, setIsInitialLoadDone] = React.useState(false);
+
+  // Get notification context to trigger notifications
+  const { showNotification } = useNotification();
 
   const {
     wsConnected,
-    wsError,
-    reconnectAttempts,
     orders: receivedOrders,
     refreshWebSocket,
-    removeOrder: removeFromWebSocket
+    removeOrder: removeFromWebSocket,
+    isInitialLoadComplete
   } = useWebSocket();
 
+  // Handle new orders and trigger notifications
   useEffect(() => {
     console.log('🔄 OrderContext: receivedOrders changed:', {
       isNull: receivedOrders === null,
@@ -134,17 +141,31 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       console.log('✅ OrderContext: Dispatching SET_ORDERS with', receivedOrders.length, 'orders');
       dispatch({ type: 'SET_ORDERS', payload: receivedOrders });
       dispatch({ type: 'SET_ERROR', payload: null });
+      
+      // 🔔 Trigger notifications for NEW orders only (skip initial load)
+      if (isInitialLoadDone) {
+        receivedOrders.forEach(order => {
+          if (!previousOrderIds.has(order.orderId)) {
+            console.log('🔔 New order detected, showing notification:', order.orderId);
+            showNotification(order);
+            setPreviousOrderIds(prev => new Set([...prev, order.orderId]));
+          }
+        });
+      } else if (isInitialLoadComplete) {
+        // Mark initial load as done and remember these order IDs
+        console.log('📋 Initial load complete, remembering', receivedOrders.length, 'existing orders');
+        setIsInitialLoadDone(true);
+        setPreviousOrderIds(new Set(receivedOrders.map(o => o.orderId)));
+      }
     } else if (receivedOrders && Array.isArray(receivedOrders) && receivedOrders.length === 0) {
       console.log('ℹ️ OrderContext: Received empty orders array');
+      if (isInitialLoadComplete && !isInitialLoadDone) {
+        setIsInitialLoadDone(true);
+      }
     }
-  }, [receivedOrders]);
+  }, [receivedOrders, isInitialLoadDone, isInitialLoadComplete, showNotification]);
 
-  useEffect(() => {
-    if (wsError) {
-      console.error('🚨 WebSocket error in OrderContext:', wsError);
-      dispatch({ type: 'SET_ERROR', payload: 'WebSocket Error: ' + wsError });
-    }
-  }, [wsError]);
+  // Removed wsError handling as it's no longer returned from useWebSocket
 
   const addOrder = useCallback((order: Order) => {
     dispatch({ type: 'ADD_ORDER', payload: order });
@@ -185,8 +206,9 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setError,
     refreshWebSocket,
     wsConnected,
-    wsError,
-    reconnectAttempts,
+    wsError: null,
+    reconnectAttempts: 0,
+    isInitialLoadComplete, // ✅ Added for loading state tracking
   };
 
   return (
@@ -217,6 +239,7 @@ export const useOrderWebSocket = () => {
     wsConnected, 
     wsError, 
     reconnectAttempts, 
+    isInitialLoadComplete,
     refreshWebSocket,
     removeOrder
   } = useOrderContext();
@@ -225,6 +248,7 @@ export const useOrderWebSocket = () => {
     wsConnected,
     wsError,
     reconnectAttempts,
+    isInitialLoadComplete,
     refreshWebSocket,
     removeOrder  // ✅ Export removeOrder for direct WebSocket order removal
   };
