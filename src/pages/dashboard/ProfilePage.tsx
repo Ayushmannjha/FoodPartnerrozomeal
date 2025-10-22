@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useProfile } from '../../hooks/useProfile';
 import type { User } from '../../types/user';
 import { profileUtils } from '../../utils/profileUtils';
+import { getChangedFields } from '../../utils/formUtils';
 
 // Components
 import { ProfileHeader } from '../../components/profile/ProfileHeader';
@@ -26,6 +27,7 @@ export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Partial<User>>({});
   const [profileData, setProfileData] = useState<User | null>(null);
+  const [originalData, setOriginalData] = useState<Partial<User>>({});
 
   // Fetch profile data when component mounts
   useEffect(() => {
@@ -42,7 +44,7 @@ export function ProfilePage() {
   useEffect(() => {
     const currentUser = profileData || user;
     if (currentUser) {
-      setFormData({
+      const userData = {
         name: currentUser.name || '',
         email: currentUser.email || '',
         phone: currentUser.phone || '',
@@ -53,7 +55,9 @@ export function ProfilePage() {
         address: currentUser.address || '',
         pincode: currentUser.pincode || '',
         chatId: currentUser.chatId || ''
-      });
+      };
+      setFormData(userData);
+      setOriginalData(userData); // Store original data for comparison
     }
   }, [profileData, user]);
 
@@ -67,7 +71,27 @@ export function ProfilePage() {
     e.preventDefault();
     clearError();
 
-    const updatedUser = await updateProfile(formData);
+    // Get only the changed fields
+    const changedFields = getChangedFields(originalData, formData);
+    
+    // If no changes, don't make API call
+    if (Object.keys(changedFields).length === 0) {
+      console.log('⚠️ No changes detected');
+      setIsEditing(false);
+      return;
+    }
+
+    console.log('📝 Sending only changed fields:', changedFields);
+
+    // Warn if pincode is being changed
+    if ('pincode' in changedFields && originalData.pincode) {
+      const confirmed = window.confirm(
+        '⚠️ Changing pincode will reconnect WebSocket to the new area. Continue?'
+      );
+      if (!confirmed) return;
+    }
+
+    const updatedUser = await updateProfile(changedFields);
     if (updatedUser) {
       const parsedUpdatedUser = profileUtils.parseProfileData(updatedUser);
       setProfileData(parsedUpdatedUser);
