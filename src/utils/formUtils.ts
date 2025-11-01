@@ -1,100 +1,99 @@
 /**
- * Form utilities for tracking changes and validation
+ * Form Utilities for Profile Updates
+ * Handles validation and change tracking for profile form data
  */
 
 /**
- * Get only the fields that have changed
+ * Get only the fields that have changed between original and current data
+ * @param original - Original data object
+ * @param current - Current/modified data object
+ * @returns Object containing only the changed fields
  */
 export function getChangedFields<T extends Record<string, any>>(
   original: T,
   current: T
 ): Partial<T> {
   const changes: Partial<T> = {};
-  
+
   for (const key in current) {
-    if (current[key] !== original[key]) {
-      // Only include if value actually changed and is not empty
-      if (current[key] !== '' && current[key] !== null && current[key] !== undefined) {
-        changes[key] = current[key];
-      }
+    // Skip if values are the same
+    if (original[key] === current[key]) {
+      continue;
+    }
+
+    // Handle empty strings vs undefined/null
+    const originalValue = original[key] || '';
+    const currentValue = current[key] || '';
+
+    if (originalValue !== currentValue) {
+      changes[key] = current[key];
     }
   }
-  
+
   return changes;
 }
 
 /**
- * Validate pincode format
+ * Validate pincode format (6 digits)
+ * @param pincode - Pincode to validate
+ * @returns true if valid, false otherwise
  */
-export function validatePincode(pincode: string | null): { valid: boolean; error?: string } {
-  if (!pincode) return { valid: true }; // Optional field
-  
-  const pincodeStr = String(pincode).trim();
-  
-  if (pincodeStr.length !== 6) {
-    return { valid: false, error: 'Pincode must be 6 digits' };
-  }
-  
-  if (!/^\d+$/.test(pincodeStr)) {
-    return { valid: false, error: 'Pincode must contain only numbers' };
-  }
-  
-  return { valid: true };
+export function validatePincode(pincode: string): boolean {
+  if (!pincode) return true; // Optional field
+  const pincodeRegex = /^\d{6}$/;
+  return pincodeRegex.test(pincode);
 }
 
 /**
  * Validate email format
+ * @param email - Email to validate
+ * @returns true if valid, false otherwise
  */
-export function validateEmail(email: string): { valid: boolean; error?: string } {
-  if (!email) return { valid: false, error: 'Email is required' };
-  
+export function validateEmail(email: string): boolean {
+  if (!email) return true; // Optional field
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return { valid: false, error: 'Invalid email format' };
-  }
-  
-  return { valid: true };
+  return emailRegex.test(email);
 }
 
 /**
- * Validate phone format
+ * Validate phone number format (10+ digits)
+ * @param phone - Phone number to validate
+ * @returns true if valid, false otherwise
  */
-export function validatePhone(phone: string): { valid: boolean; error?: string } {
-  if (!phone) return { valid: true }; // Optional field
-  
-  const phoneStr = String(phone).trim();
-  
-  if (phoneStr.length < 10) {
-    return { valid: false, error: 'Phone must be at least 10 digits' };
-  }
-  
-  if (!/^\d+$/.test(phoneStr)) {
-    return { valid: false, error: 'Phone must contain only numbers' };
-  }
-  
-  return { valid: true };
+export function validatePhone(phone: string): boolean {
+  if (!phone) return true; // Optional field
+  const phoneRegex = /^\d{10,}$/;
+  return phoneRegex.test(phone.replace(/\D/g, '')); // Remove non-digits before validation
 }
 
 /**
- * Validate profile data before submission
+ * Validate all profile data fields
+ * @param data - Profile data to validate
+ * @returns Validation result with errors if any
  */
-export function validateProfileData(data: any): { valid: boolean; errors: string[] } {
+export function validateProfileData(data: Record<string, any>): {
+  valid: boolean;
+  errors: string[];
+} {
   const errors: string[] = [];
-  
-  if (data.email) {
-    const emailValidation = validateEmail(data.email);
-    if (!emailValidation.valid) errors.push(emailValidation.error!);
+
+  // Validate pincode
+  if (data.pincode && !validatePincode(data.pincode)) {
+    errors.push('Pincode must be 6 digits');
   }
-  
-  if (data.phone) {
-    const phoneValidation = validatePhone(data.phone);
-    if (!phoneValidation.valid) errors.push(phoneValidation.error!);
+
+  // Validate email
+  if (data.email && !validateEmail(data.email)) {
+    errors.push('Invalid email format');
   }
-  
-  if (data.pincode) {
-    const pincodeValidation = validatePincode(data.pincode);
-    if (!pincodeValidation.valid) errors.push(pincodeValidation.error!);
+
+  // Validate phone
+  if (data.phone && !validatePhone(data.phone)) {
+    errors.push('Phone number must be at least 10 digits');
   }
-  
-  return { valid: errors.length === 0, errors };
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
 }

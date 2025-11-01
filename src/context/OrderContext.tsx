@@ -14,6 +14,7 @@ interface OrderState {
     dateTo: string | null;
     searchTerm: string;
   };
+  acceptedOrderIds: Set<string>; // ✅ ONLY for notification prevention (NOT for filtering display)
 }
 
 type OrderAction =
@@ -24,7 +25,8 @@ type OrderAction =
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_FILTERS'; payload: Partial<OrderState['filters']> }
   | { type: 'UPDATE_ORDER'; payload: Order}
-  | { type: 'REMOVE_ORDER'; payload: string };
+  | { type: 'REMOVE_ORDER'; payload: string }
+  | { type: 'MARK_ORDER_ACCEPTED'; payload: string }; // ✅ Add accepted tracking
 
 const initialState: OrderState = {
   orders: [],
@@ -36,7 +38,8 @@ const initialState: OrderState = {
     dateFrom: null,
     dateTo: null,
     searchTerm: ''
-  }
+  },
+  acceptedOrderIds: new Set() // ✅ Initialize accepted orders set
 };
 
 const orderReducer = (state: OrderState, action: OrderAction): OrderState => {
@@ -87,6 +90,20 @@ const orderReducer = (state: OrderState, action: OrderAction): OrderState => {
         orders: state.orders.filter(order => order.orderId !== action.payload)
       };
     
+    case 'MARK_ORDER_ACCEPTED': // ✅ Mark accepted + update status optimistically
+      console.log('✅ Marking order as accepted (notification prevention):', action.payload);
+      console.log('ℹ️  Optimistically updating order status to 1 (Accepted)');
+      return {
+        ...state,
+        acceptedOrderIds: new Set([...state.acceptedOrderIds, action.payload]),
+        // ✅ Optimistically update the order status to "Accepted" (1)
+        orders: state.orders.map(order =>
+          order.orderId === action.payload
+            ? { ...order, status: 1 } // Update status to Accepted
+            : order
+        )
+      };
+    
     default:
       return state;
   }
@@ -98,6 +115,7 @@ interface OrderContextType {
   addOrder: (order: Order) => void;
   updateOrder: (order: Order) => void;
   removeOrder: (orderId: string) => void;  // ✅ Removes from both WebSocket and local state
+  markOrderAsAccepted: (orderId: string) => void; // ✅ Mark order as accepted globally
   setFilters: (filters: Partial<OrderState['filters']>) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -118,7 +136,15 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const [isInitialLoadDone, setIsInitialLoadDone] = React.useState(false);
 
   // Get notification context to trigger notifications
-  const { showNotification } = useNotification();
+  const notificationContext = useNotification();
+  const { showNotification } = notificationContext;
+  
+  // Debug: Check if notification context is available
+  console.log('🔍 OrderProvider: Notification context available?', {
+    hasContext: !!notificationContext,
+    hasShowNotification: typeof showNotification === 'function',
+    activeNotification: notificationContext.activeNotification?.order?.orderId
+  });
 
   const {
     wsConnected,
@@ -129,39 +155,56 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   } = useWebSocket();
 
   // Handle new orders and trigger notifications
+  // ✅ Use ref to track previous order count to detect changes
+  const prevOrderCountRef = React.useRef<number>(0);
+
   useEffect(() => {
-    console.log('🔄 OrderContext: receivedOrders changed:', {
-      isNull: receivedOrders === null,
-      isArray: Array.isArray(receivedOrders),
-      length: receivedOrders?.length,
-      data: receivedOrders
+    if (!receivedOrders || !Array.isArray(receivedOrders)) {
+      return;
+    }
+
+    const currentCount = receivedOrders.length;
+    const previousCount = prevOrderCountRef.current;
+
+    console.log('🔄 OrderContext: Checking orders:', {
+      currentCount,
+      previousCount,
+      changed: currentCount !== previousCount,
+      isInitialLoadDone
     });
-    
-    if (receivedOrders && Array.isArray(receivedOrders) && receivedOrders.length > 0) {
-      console.log('✅ OrderContext: Dispatching SET_ORDERS with', receivedOrders.length, 'orders');
+
+    // ✅ ONLY dispatch if the count actually changed
+    if (currentCount !== previousCount) {
+      console.log('✅ OrderContext: Order count changed, dispatching SET_ORDERS with', currentCount, 'orders');
       dispatch({ type: 'SET_ORDERS', payload: receivedOrders });
       dispatch({ type: 'SET_ERROR', payload: null });
-      
-      // 🔔 Trigger notifications for NEW orders only (skip initial load)
-      if (isInitialLoadDone) {
-        receivedOrders.forEach(order => {
-          if (!previousOrderIds.has(order.orderId)) {
-            console.log('🔔 New order detected, showing notification:', order.orderId);
-            showNotification(order);
-            setPreviousOrderIds(prev => new Set([...prev, order.orderId]));
-          }
-        });
-      } else if (isInitialLoadComplete) {
-        // Mark initial load as done and remember these order IDs
-        console.log('📋 Initial load complete, remembering', receivedOrders.length, 'existing orders');
-        setIsInitialLoadDone(true);
-        setPreviousOrderIds(new Set(receivedOrders.map(o => o.orderId)));
-      }
-    } else if (receivedOrders && Array.isArray(receivedOrders) && receivedOrders.length === 0) {
-      console.log('ℹ️ OrderContext: Received empty orders array');
-      if (isInitialLoadComplete && !isInitialLoadDone) {
-        setIsInitialLoadDone(true);
-      }
+      prevOrderCountRef.current = currentCount;
+    }
+    
+    // Handle initial load completion
+    if (isInitialLoadComplete && !isInitialLoadDone) {
+      console.log('📋 Initial load complete, remembering', receivedOrders.length, 'existing orders');
+      setIsInitialLoadDone(true);
+      setPreviousOrderIds(new Set(receivedOrders.map(o => o.orderId)));
+      return;
+    }
+    
+    // 🔔 Trigger notifications for NEW orders only (after initial load)
+    // ✅ Also check acceptedOrderIds to prevent duplicate notifications
+    if (isInitialLoadDone && receivedOrders.length > 0) {
+      receivedOrders.forEach(order => {
+        const isNewOrder = !previousOrderIds.has(order.orderId);
+        const notAlreadyAccepted = !state.acceptedOrderIds.has(order.orderId);
+        
+        if (isNewOrder && notAlreadyAccepted) {
+          console.log('🔔 NEW ORDER DETECTED! Showing notification:', order.orderId);
+          showNotification(order);
+          setPreviousOrderIds(prev => new Set([...prev, order.orderId]));
+        } else if (isNewOrder && !notAlreadyAccepted) {
+          console.log('⏭️ Skipping notification - order already accepted:', order.orderId);
+          setPreviousOrderIds(prev => new Set([...prev, order.orderId]));
+        }
+      });
     }
   }, [receivedOrders, isInitialLoadDone, isInitialLoadComplete, showNotification]);
 
@@ -183,6 +226,12 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     dispatch({ type: 'REMOVE_ORDER', payload: orderId });
   }, [removeFromWebSocket]);
 
+  const markOrderAsAccepted = useCallback((orderId: string) => {
+    console.log('✅ OrderContext markOrderAsAccepted called for:', orderId);
+    console.log('ℹ️  This prevents duplicate notifications - order will still display based on status');
+    dispatch({ type: 'MARK_ORDER_ACCEPTED', payload: orderId });
+  }, []);
+
   const setFilters = useCallback((filters: Partial<OrderState['filters']>) => {
     dispatch({ type: 'SET_FILTERS', payload: filters });
   }, []);
@@ -201,6 +250,7 @@ export const OrderProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     addOrder,
     updateOrder,
     removeOrder,
+    markOrderAsAccepted, // ✅ Export globally accepted orders tracker
     setFilters,
     setLoading,
     setError,

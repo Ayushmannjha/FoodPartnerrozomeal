@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext.tsx';
 import { OrderProvider } from '../context/OrderContext.tsx';
 import { NotificationProvider } from '../context/NotificationContext.tsx';
+import { NotificationOrderBridge } from '../components/common/NotificationOrderBridge.tsx';
 import { OrderNotificationModal } from '../components/notification/OrderNotificationModal.tsx';
 import { PrivateRoute } from './PrivateRoute.tsx';
 import { PublicRoute } from './PublicRoute.tsx';
@@ -36,52 +37,57 @@ export function AppRouter() {
   return (
     <Router>
       <AuthProvider>
+        {/* ✅ NotificationProvider wraps OrderProvider to avoid circular dependency */}
+        {/* OrderProvider needs useNotification(), so NotificationProvider must be parent */}
         <NotificationProvider>
-          <Routes>
-            {/* Public Routes */}
-            <Route 
-              path="/" 
-              element={
-                <PublicRoute>
-                  <HomePage />
-                </PublicRoute>
-              } 
-            />
-            <Route 
-              path="/login" 
-              element={
-                <PublicRoute>
-                  <LoginPage />
-                </PublicRoute>
-              } 
-            />
+          <OrderProvider>
+            {/* Bridge component connects OrderContext callbacks to NotificationContext */}
+            <NotificationOrderBridge>
+              <Routes>
+              {/* Public Routes */}
+              <Route 
+                path="/" 
+                element={
+                  <PublicRoute>
+                    <HomePage />
+                  </PublicRoute>
+                } 
+              />
+              <Route 
+                path="/login" 
+                element={
+                  <PublicRoute>
+                    <LoginPage />
+                  </PublicRoute>
+                } 
+              />
 
-            {/* Private Routes */}
-            <Route 
-              path="/dashboard" 
-              element={
-                <PrivateRoute>
-                  <OrderProvider>
+              {/* Private Routes */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <PrivateRoute>
                     <DashboardPage />
-                  </OrderProvider>
-                </PrivateRoute>
-              }
-            >
-              <Route index element={<DashboardHome />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="assigned" element={<AssignedFoodPage />} />
-              <Route path="history" element={<HistoryPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+                  </PrivateRoute>
+                }
+              >
+                <Route index element={<DashboardHome />} />
+                <Route path="profile" element={<ProfilePage />} />
+                <Route path="assigned" element={<AssignedFoodPage />} />
+                <Route path="history" element={<HistoryPage />} />
+                <Route path="settings" element={<SettingsPage />} />
                 <Route path="order-assigned" element={<OrderAssignedPage />} />
-                  <Route path="order" element={<OrderPage />} />
-            </Route>
+                <Route path="order" element={<OrderPage />} />
+              </Route>
 
-            {/* 404 Route */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-          
-          {/* Global Notification Modal - Renders on all pages */}
-          <OrderNotificationModal />
+              {/* 404 Route */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+            
+            {/* Global Notification Modal - Renders on all pages */}
+            <OrderNotificationModal />
+            </NotificationOrderBridge>
+          </OrderProvider>
         </NotificationProvider>
       </AuthProvider>
     </Router>

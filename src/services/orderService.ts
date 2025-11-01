@@ -68,9 +68,9 @@ export const orderService = {
     try {
       console.log('🔍 Fetching assigned orders for food partner:', foodPartnerId);
       console.log('🔗 Request URL: /food-partner/get-assigned-order?id=' + foodPartnerId + '&status=1');
-      
+
       const response = await httpClient.get<any>(`/food-partner/get-assigned-order?id=${foodPartnerId}&status=1`);
-      
+
       console.log('✅ Raw assigned orders response:', response);
       console.log('📊 Response type:', typeof response);
       console.log('📊 Is array:', Array.isArray(response));
@@ -200,7 +200,7 @@ export const orderService = {
       console.log('🔍 Fetching assigned orders for food partner:', foodPartnerId);
       console.log('🔗 Request URL: /food-partner/get-assigned-order?id=' + foodPartnerId + '&status=3');
 
-      const response = await httpClient.get<any>(`/food-partner/get-assigned-order?id=${foodPartnerId}&status=3`);
+      const response = await httpClient.get<any>(`/food-partner/get-assigned-order?id=${foodPartnerId}&status=2`);
 
       console.log('✅ Raw assigned orders response:', response);
       console.log('📊 Response type:', typeof response);
