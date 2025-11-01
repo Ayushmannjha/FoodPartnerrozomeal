@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 
 export function OrderPage() {
   const { user } = useAuth();
-  const { state, setFilters } = useOrderContext();
+  const { state, setFilters, markOrderAsAccepted } = useOrderContext(); // ✅ Get markOrderAsAccepted
   const { 
     wsConnected,
     isInitialLoadComplete,
@@ -27,9 +27,18 @@ export function OrderPage() {
   
   const [acceptingOrders, setAcceptingOrders] = useState<Set<string>>(new Set());
 
-  // Filter orders based on current filters
+  // ✅ FIXED: Filter orders - only exclude orders being accepted (optimistic UI)
+  // acceptedOrderIds is ONLY for notification prevention, not for display filtering
   const filteredOrders = state.orders.filter(order => {
     const { filters } = state;
+    
+    // ✅ Exclude orders currently being accepted (optimistic UI - temporary)
+    if (acceptingOrders.has(order.orderId)) {
+      return false;
+    }
+    
+    // ✅ REMOVED: Don't filter by acceptedOrderIds
+    // Orders should display based on their status (0=pending, 1=accepted, 2=in-progress, 3=completed)
     
     const matchesSearch = !filters.searchTerm || 
       order.orderId.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
@@ -41,13 +50,24 @@ export function OrderPage() {
     return matchesSearch && matchesStatus;
   });
 
-  // Categorize orders
-  const pendingOrders = state.orders.filter(order => canAcceptOrder(order.status));
-  const activeOrders = state.orders.filter(order => order.status === 1 || order.status === 2);
-  const completedOrders = state.orders.filter(order => order.status === 3);
+  // ✅ FIXED: Categorize orders with proper filtering
+  // Filter acceptedOrderIds from PENDING (status 0) but show them in ACTIVE (status 1+)
+  const pendingOrders = state.orders.filter(order => 
+    canAcceptOrder(order.status) && // Status 0: Pending orders
+    !state.acceptedOrderIds.has(order.orderId) && // Hide if already accepted (optimistic)
+    !acceptingOrders.has(order.orderId) // Hide if currently being accepted
+  );
+  
+  const activeOrders = state.orders.filter(order => 
+    (order.status === 1 || order.status === 2) // Status 1: Accepted, Status 2: In Progress
+    // Don't filter by acceptedOrderIds - these ARE the accepted orders!
+  );
+  
+  const completedOrders = state.orders.filter(order => 
+    order.status === 3 // Status 3: Completed orders
+  );
 
-  // Handle order acceptance
-  // ✅ Now uses orderService.acceptOrder() via useOrderAccept() hook
+  // ✅ Handle order acceptance with global state sync
   const handleAcceptOrder = async (orderId: string): Promise<{ success: boolean; message: string }> => {
     console.log('🎯 handleAcceptOrder called for orderId:', orderId);
     
@@ -56,7 +76,14 @@ export function OrderPage() {
       return { success: false, message: 'User not authenticated' };
     }
 
+    // ✅ OPTIMISTIC UPDATE: Hide order immediately in UI
     setAcceptingOrders(prev => new Set(prev).add(orderId));
+    
+    // ✅ Mark as accepted globally (syncs with notifications)
+    markOrderAsAccepted(orderId);
+    
+    // ✅ Remove from WebSocket state immediately for instant UI feedback
+    removeFromWebSocket(orderId);
 
     try {
       console.log('📤 Accepting order via orderService...');
@@ -66,23 +93,26 @@ export function OrderPage() {
       console.log('📥 Accept order result:', result);
       
       if (result.success) {
-        // ✅ Remove from WebSocket state via OrderContext (primary source)
-        console.log('✅ Order accepted successfully - removing from pending orders');
-        removeFromWebSocket(orderId);  // ✅ Use WebSocket removeOrder via OrderContext
-        
+        console.log('✅ Order accepted successfully!');
         console.log('🎉 Order acceptance complete!');
       } else {
-        console.error('❌ Order acceptance failed:', result.message);
+        // ❌ If failed, refresh to restore correct state
+        console.error('❌ Order acceptance failed - reverting:', result.message);
+        refreshWebSocket();
       }
       
       return result; // Returns {success, data, message}
     } catch (error) {
       console.error('❌ Error accepting order:', error);
+      // ❌ On error, refresh to restore correct state
+      refreshWebSocket();
+      
       return { 
         success: false, 
         message: error instanceof Error ? error.message : 'Failed to accept order' 
       };
     } finally {
+      // ✅ Always cleanup accepting state
       setAcceptingOrders(prev => {
         const newSet = new Set(prev);
         newSet.delete(orderId);

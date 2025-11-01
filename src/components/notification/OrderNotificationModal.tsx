@@ -13,10 +13,19 @@ export const OrderNotificationModal: React.FC = () => {
     acceptError
   } = useNotification();
 
+  // 🐛 DEBUG: Log modal render state
+  console.log('🎬 OrderNotificationModal render:', {
+    hasActiveNotification: !!activeNotification,
+    orderId: activeNotification?.order?.orderId,
+    timestamp: new Date().toISOString()
+  });
+
   if (!activeNotification) {
+    console.log('❌ Modal hidden - no activeNotification');
     return null;
   }
 
+  console.log('✅ Modal VISIBLE - showing order:', activeNotification.order.orderId);
   const { order } = activeNotification;
 
   // Format date/time

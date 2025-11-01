@@ -25,11 +25,13 @@ export const NotificationContext = createContext<NotificationContextValue | unde
 interface NotificationProviderProps {
   children: React.ReactNode;
   onNewOrder?: (order: Order) => void;
+  onOrderAccepted?: (orderId: string) => void; // Callback to update OrderContext
 }
 
 export const NotificationProvider: React.FC<NotificationProviderProps> = ({ 
   children, 
-  onNewOrder 
+  onNewOrder,
+  onOrderAccepted
 }) => {
   const [notifications, setNotifications] = useState<OrderNotification[]>([]);
   const [activeNotification, setActiveNotification] = useState<OrderNotification | null>(null);
@@ -41,7 +43,14 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const showNotification = useCallback((order: Order) => {
     console.log('🔔 New notification triggered for order:', order.orderId);
     
-    // Check if notification already exists using setState callback
+    const notification: OrderNotification = {
+      id: order.orderId,
+      order,
+      timestamp: new Date(),
+      read: false
+    };
+
+    // Check if notification already exists
     setNotifications(prev => {
       const exists = prev.some(n => n.order.orderId === order.orderId);
       if (exists) {
@@ -49,19 +58,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         return prev; // No change
       }
 
-      const notification: OrderNotification = {
-        id: order.orderId,
-        order,
-        timestamp: new Date(),
-        read: false
-      };
-
       console.log('✅ Notification added to queue');
-      
-      // Set as active if no active notification
-      setActiveNotification(current => current || notification);
-
       return [...prev, notification];
+    });
+
+    // ✅ CRITICAL FIX: Set as active notification OUTSIDE setState callback
+    // This ensures the modal shows immediately
+    setActiveNotification(current => {
+      if (current) {
+        console.log('📋 Another notification is active, this will queue');
+        return current; // Keep current active
+      }
+      console.log('🎯 Setting as active notification');
+      return notification; // Set this as active
     });
 
     // Play notification sound
@@ -104,6 +113,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     setIsAccepting(true);
     setAcceptError(null);
 
+    // ✅ Call OrderContext callbacks (via bridge or prop)
+    const orderCallbacks = (window as any).__orderContextCallbacks;
+    if (orderCallbacks) {
+      console.log('✅ Calling OrderContext callbacks via bridge');
+      orderCallbacks.markOrderAsAccepted(orderId);
+      orderCallbacks.removeOrder(orderId);
+    } else if (onOrderAccepted) {
+      console.log('✅ Calling OrderContext callback via prop');
+      onOrderAccepted(orderId);
+    } else {
+      console.warn('⚠️ No OrderContext callbacks available');
+    }
+
     try {
       const response = await orderService.acceptOrder(orderId, user.id);
       console.log('✅ Order accepted successfully:', response);
@@ -121,7 +143,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     } finally {
       setIsAccepting(false);
     }
-  }, [user?.id]);
+  }, [user?.id, onOrderAccepted]);
 
   // Show next notification in queue when active one is dismissed
   useEffect(() => {

@@ -101,45 +101,42 @@ export interface AssignedOrderResponse {
 }
 
 // 🎯 Move enum and constants to the end and make sure they're properly exported
-export enum OrderStatus {
-  place_order = 0,    // Customer sees: "preparing"
-  accept_order = 1,   // Customer sees: "on-the-way" 
-  preparing_order = 2,    // Customer sees: "delivered"
-  delivery_order = 3,
-  cancel_order = 4       // Customer sees: "cancelled"
+export enum OrderStatus {   
+  preparing_order = 1,   // Customer sees: "on-the-way" 
+  delivered_order = 2,    // Customer sees: "delivered"
+  cancelled_order = 3,
+  returned_order = 4       // Customer sees: "cancelled"
 }
 
 // 🎯 Updated labels to match customer experience
 export const ORDER_STATUS_LABELS = {
-  [OrderStatus.place_order]: 'place_order',
-  [OrderStatus.accept_order]: 'accept_order',
-  [OrderStatus.preparing_order]: 'preparing_order',
-  [OrderStatus.delivery_order]: 'delivery_order', // Internal use only
-  [OrderStatus.cancel_order]: 'Cancelled'
+  
+  [OrderStatus.preparing_order]: 'accept_order',
+  [OrderStatus.delivered_order]: 'preparing_order',
+  [OrderStatus.cancelled_order]: 'delivery_order', // Internal use only
+  [OrderStatus.returned_order]: 'Cancelled'
 
 } as const;
 
 // 🎯 Updated colors for new status mapping
 export const ORDER_STATUS_COLORS = {
-  [OrderStatus.place_order]: 'bg-orange-100 text-orange-800',    // Preparing food
-  [OrderStatus.accept_order]: 'bg-blue-100 text-blue-800',      // Out for delivery
-  [OrderStatus.preparing_order]: 'bg-green-100 text-green-800',     // Successfully delivered
-  [OrderStatus.delivery_order]: 'bg-red-100 text-red-800'          // Order cancelled
+      // Preparing food
+  [OrderStatus.preparing_order]: 'bg-blue-100 text-blue-800',      // Out for delivery
+  [OrderStatus.delivered_order]: 'bg-green-100 text-green-800',     // Successfully delivered
+  [OrderStatus.cancelled_order]: 'bg-red-100 text-red-800'          // Order cancelled
 } as const;
 
 // 🎯 Helper function to get customer status string (for reference)
 export const getCustomerStatusString = (status: number): string => {
   switch (status) {
-    case 0:
-      return "place-order";
     case 1:
-      return "accept-order";
-    case 2:
       return "preparing-order";
+    case 2:
+      return "delivered-order";
     case 3:
-      return "delivery-order"; 
+      return "cancelled-order"; 
     case 4:
-      return "cancel-order"; 
+      return "returned-order"; 
     default:
       return "unknown";
   }
@@ -148,12 +145,12 @@ export const getCustomerStatusString = (status: number): string => {
 // 🎯 Helper function for food partner actions (what they can do next)
 export const getFoodPartnerActions = (currentStatus: number): string[] => {
   switch (currentStatus) {
-    case OrderStatus.delivery_order:
-      return ['Mark Ready for Delivery'];
-    case OrderStatus.accept_order:
-      return ['Mark Delivered'];
     case OrderStatus.preparing_order:
-    case OrderStatus.cancel_order:
+      return ['Mark Ready for Delivery'];
+    case OrderStatus.delivered_order:
+      return ['Mark Delivered'];
+    case OrderStatus.cancelled_order:
+    case OrderStatus.returned_order:
       return []; // No more actions possible
     default:
       return [];
